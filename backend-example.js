@@ -13,6 +13,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const twilio = require('twilio');
 const QRCode = require('qrcode');
+const fs = require('fs');
+const path = require('path');
 
 dotenv.config();
 
@@ -30,16 +32,38 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
     twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 }
 
-// In-memory database (replace with real DB in production)
-const leads = [];
-const passes = [];
-const venues = [];
-const models = [];
+// Persistent JSON storage
+const DATA_FILE = path.join(__dirname, 'data.json');
+
+function loadData() {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        }
+    } catch (e) {
+        console.error('Error loading data file:', e);
+    }
+    return { leads: [], passes: [], venues: [], models: [] };
+}
+
+function saveData() {
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+    } catch (e) {
+        console.error('Error saving data file:', e);
+    }
+}
+
+const db = loadData();
+const leads = db.leads;
+const passes = db.passes;
+const venues = db.venues;
+const models = db.models;
 
 // SPA route handling - serve index.html for /tag/:modelId and track tap
 app.get('/tag/:modelId', (req, res) => {
     const model = models.find(m => m.name === req.params.modelId);
-    if (model) model.totalTaps++;
+    if (model) { model.totalTaps++; saveData(); }
     res.sendFile(__dirname + '/index.html');
 });
 
@@ -73,6 +97,7 @@ app.post('/api/leads', async (req, res) => {
 
         // Save to database
         leads.push(lead);
+        saveData();
 
         console.log('📋 Lead captured:', lead);
 
@@ -112,7 +137,7 @@ app.post('/api/passes', async (req, res) => {
 
         // Track conversion on model
         const model = models.find(m => m.name === modelId);
-        if (model) model.conversions++;
+        if (model) { model.conversions++; saveData(); }
 
         // Create pass record
         const pass = {
@@ -129,6 +154,7 @@ app.post('/api/passes', async (req, res) => {
 
         // Save to database
         passes.push(pass);
+        saveData();
 
         console.log('✅ Pass generated:', pass);
 
@@ -244,6 +270,7 @@ app.post('/api/confirm-entry', async (req, res) => {
         pass.used = true;
         pass.status = 'redeemed';
         pass.redeemedAt = confirmedAt || new Date().toISOString();
+        saveData();
 
         console.log('🎉 Entry confirmed and pass BURNED:', pass);
 
@@ -315,6 +342,7 @@ app.post('/api/admin/venues', (req, res) => {
     const venue = { id: name.toLowerCase().replace(/\s+/g, '-'), name, address, offer, icon: icon || '🎭', fee };
     const existing = venues.findIndex(v => v.id === venue.id);
     if (existing >= 0) venues[existing] = venue; else venues.push(venue);
+    saveData();
     res.json(venue);
 });
 
@@ -322,6 +350,7 @@ app.delete('/api/admin/venues/:id', (req, res) => {
     const idx = venues.findIndex(v => v.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: 'Not found' });
     venues.splice(idx, 1);
+    saveData();
     res.json({ success: true });
 });
 
@@ -333,6 +362,7 @@ app.post('/api/admin/models', (req, res) => {
     if (!name) return res.status(400).json({ error: 'Name required' });
     const model = { id: `model_${Date.now()}`, name, description, location, totalTaps: 0, conversions: 0 };
     models.push(model);
+    saveData();
     res.json(model);
 });
 
@@ -340,6 +370,7 @@ app.delete('/api/admin/models/:id', (req, res) => {
     const idx = models.findIndex(m => m.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: 'Not found' });
     models.splice(idx, 1);
+    saveData();
     res.json({ success: true });
 });
 
