@@ -36,8 +36,10 @@ const passes = [];
 const venues = [];
 const models = [];
 
-// SPA route handling - serve index.html for /tag/:modelId
+// SPA route handling - serve index.html for /tag/:modelId and track tap
 app.get('/tag/:modelId', (req, res) => {
+    const model = models.find(m => m.name === req.params.modelId);
+    if (model) model.totalTaps++;
     res.sendFile(__dirname + '/index.html');
 });
 
@@ -108,14 +110,19 @@ app.post('/api/passes', async (req, res) => {
         // Send SMS with pass
         await sendPassViaSMS(phone, passCode, venueId);
 
+        // Track conversion on model
+        const model = models.find(m => m.name === modelId);
+        if (model) model.conversions++;
+
         // Create pass record
         const pass = {
             id: `pass_${Date.now()}`,
             passCode,
             phone,
             venueId,
+            venueName: getVenueName(venueId),
             modelId,
-            timestamp: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
             status: 'active',
             used: false
         };
@@ -172,10 +179,7 @@ app.post('/api/verify-pass', async (req, res) => {
         const { passCode, venueId } = req.body;
 
         // Find pass
-        const pass = passes.find(p => 
-            p.passCode === passCode && 
-            p.status === 'active'
-        );
+        const pass = passes.find(p => p.passCode === passCode);
 
         if (!pass) {
             return res.status(404).json({ 
@@ -184,10 +188,10 @@ app.post('/api/verify-pass', async (req, res) => {
             });
         }
 
-        if (pass.used) {
+        if (pass.used || pass.status === 'redeemed') {
             return res.status(400).json({ 
                 valid: false, 
-                message: 'Pass already redeemed',
+                message: 'This pass has already been redeemed. Customer needs a new pass.',
                 redeemedAt: pass.redeemedAt,
                 venue: pass.venueId
             });
@@ -231,16 +235,17 @@ app.post('/api/confirm-entry', async (req, res) => {
 
         if (pass.used) {
             return res.status(400).json({ 
-                error: 'Pass already redeemed',
+                error: 'This pass has already been redeemed. Customer needs a new pass for another visit.',
                 redeemedAt: pass.redeemedAt
             });
         }
 
-        // Mark as used
+        // Mark as used - ONE pass = ONE use, no re-entry
         pass.used = true;
+        pass.status = 'redeemed';
         pass.redeemedAt = confirmedAt || new Date().toISOString();
 
-        console.log('🎉 Entry confirmed and pass redeemed:', pass);
+        console.log('🎉 Entry confirmed and pass BURNED:', pass);
 
         res.json({
             success: true,
@@ -248,7 +253,7 @@ app.post('/api/confirm-entry', async (req, res) => {
             venueId: pass.venueId,
             customerName: pass.phone,
             redeemedAt: pass.redeemedAt,
-            message: 'Customer checked in successfully!'
+            message: 'Customer checked in! Pass is now used up — they need a new one next time.'
         });
 
     } catch (error) {
@@ -377,14 +382,17 @@ async function generateQRCode(passCode, venueId) {
  * Send pass via SMS
  */
 async function sendPassViaSMS(phone, passCode, venueId) {
+    const venue = venues.find(v => v.id === venueId);
+    const venueName = venue ? venue.name : venueId;
+    const venueOffer = venue ? venue.offer : 'VIP Pass';
+
     if (!twilioClient) {
-        console.log(`📱 SMS skipped (Twilio not configured). Would send to ${phone}: Pass ${passCode}`);
+        console.log(`📱 SMS skipped (Twilio not configured). Would send to ${phone}: ${venueName} - ${venueOffer} - Code: ${passCode}`);
         return null;
     }
     try {
-        const venueName = getVenueName(venueId);
         const message = await twilioClient.messages.create({
-            body: `🎉 Your ${venueName} VIP Pass: ${passCode}\n\nShow this code at the door for your exclusive offer!`,
+            body: `🎉 Your ${venueName} VIP Pass: ${passCode}\n\n${venueOffer}\n\nShow this code at the door!`,
             from: process.env.TWILIO_PHONE_NUMBER,
             to: phone
         });
@@ -396,15 +404,11 @@ async function sendPassViaSMS(phone, passCode, venueId) {
 }
 
 /**
- * Get venue name (hardcoded for example)
+ * Get venue name from live venues array
  */
 function getVenueName(venueId) {
-    const venues = {
-        'wolf-den': 'Wolf Den Bar & Grill',
-        'strip-club': 'Establishment B (Strip Club)',
-        'lounge': 'Establishment C (Lounge)'
-    };
-    return venues[venueId] || 'Venue';
+    const venue = venues.find(v => v.id === venueId);
+    return venue ? venue.name : venueId;
 }
 
 // ============================================

@@ -1,25 +1,5 @@
-// Sample venue data - this should come from your backend API
-const VENUES = [
-    {
-        id: 'wolf-den',
-        name: 'Wolf Den Bar & Grill',
-        address: '501 Ralston St, Reno, NV 89503',
-        offer: 'Claim Free Drink Pass',
-        icon: '🍺'
-    },
-    {
-        id: 'strip-club',
-        name: 'Establishment B (Strip Club)',
-        offer: 'Claim Reduced Cover Pass',
-        icon: '🎭'
-    },
-    {
-        id: 'lounge',
-        name: 'Establishment C (Lounge)',
-        offer: 'Claim 15% Off Hookah',
-        icon: '🌬️'
-    }
-];
+// Venues loaded from backend (populated by admin dashboard)
+let VENUES = [];
 
 // State management
 let formData = {
@@ -30,8 +10,9 @@ let formData = {
 };
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     extractModelIdFromURL();
+    await loadVenues();
     setupEventListeners();
     logAnalytics('page_loaded', { modelId: formData.modelId });
 });
@@ -120,6 +101,25 @@ async function handleFormSubmit(e) {
 
     // Show venue portal
     showVenuePortal();
+}
+
+// Fetch venues from backend
+async function loadVenues() {
+    try {
+        const res = await fetch('/api/admin/venues');
+        const data = await res.json();
+        if (data.length > 0) {
+            VENUES = data;
+        }
+    } catch (e) {
+        console.warn('Could not load venues from backend, using defaults');
+    }
+    // Fallback if no venues in DB yet
+    if (VENUES.length === 0) {
+        VENUES = [
+            { id: 'wolf-den', name: 'Wolf Den Bar & Grill', offer: 'Claim Free Drink Pass', icon: '🍺' }
+        ];
+    }
 }
 
 // Send lead data to backend

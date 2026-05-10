@@ -386,8 +386,8 @@ function renderPassesList(data) {
         <tr>
             <td><code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">${pass.passCode}</code></td>
             <td>${pass.phone}</td>
-            <td>${pass.venueId}</td>
-            <td>${new Date(pass.createdAt).toLocaleDateString()}</td>
+            <td>${pass.venueName || pass.venueId}</td>
+            <td>${new Date(pass.createdAt || pass.timestamp).toLocaleDateString()}</td>
             <td><span class="status-badge status-${pass.used ? 'used' : 'active'}">${pass.used ? 'Redeemed' : 'Active'}</span></td>
             <td>${pass.redeemedAt ? new Date(pass.redeemedAt).toLocaleString() : '-'}</td>
         </tr>

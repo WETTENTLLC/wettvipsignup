@@ -1,24 +1,18 @@
-// Venue reference data
-const VENUE_MAP = {
-    'wolf-den': {
-        name: 'Wolf Den Bar & Grill',
-        address: '501 Ralston St, Reno, NV 89503',
-        offer: 'Free Drink Pass'
-    },
-    'strip-club': {
-        name: 'Establishment B (Strip Club)',
-        offer: 'Reduced Cover Pass'
-    },
-    'lounge': {
-        name: 'Establishment C (Lounge)',
-        offer: '15% Off Hookah'
-    }
-};
+// Venue data loaded from backend
+let VENUE_MAP = {};
 
 // Initialize verification on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // Load venues from backend
+    try {
+        const res = await fetch('/api/admin/venues');
+        const venueList = await res.json();
+        venueList.forEach(v => { VENUE_MAP[v.id] = { name: v.name, offer: v.offer, address: v.address }; });
+    } catch (e) {
+        console.warn('Could not load venues');
+    }
+
     const passCode = extractPassCodeFromURL();
-    
     if (passCode) {
         verifyPass(passCode);
     } else {
