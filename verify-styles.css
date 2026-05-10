@@ -1,0 +1,309 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-color: #d4af37;
+    --primary-dark: #b8941f;
+    --secondary-color: #1a1a1a;
+    --accent-color: #ff1493;
+    --success-color: #00d084;
+    --error-color: #ff4757;
+    --warning-color: #ffa502;
+    --text-color: #333;
+    --light-bg: #f9f9f9;
+    --border-color: #e0e0e0;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, var(--secondary-color) 0%, #2a2a2a 100%);
+    color: var(--text-color);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.container {
+    width: 100%;
+    max-width: 500px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    animation: slideUp 0.5s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* States */
+.state {
+    display: none;
+    padding: 40px 30px;
+    text-align: center;
+    animation: fadeIn 0.4s ease;
+}
+
+.state.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Badges */
+.success-badge,
+.error-badge,
+.warning-badge {
+    font-size: 3rem;
+    margin-bottom: 20px;
+    animation: bounce 0.6s ease;
+}
+
+.success-badge.large {
+    font-size: 4rem;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* Headings */
+h1 {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: var(--secondary-color);
+}
+
+/* Pass Details */
+.pass-details {
+    background: var(--light-bg);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 25px 0;
+    text-align: left;
+}
+
+.detail-item {
+    margin-bottom: 15px;
+}
+
+.detail-item:last-child {
+    margin-bottom: 0;
+}
+
+.detail-item label {
+    display: block;
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.detail-item p {
+    font-size: 1.1rem;
+    color: var(--secondary-color);
+    font-weight: 600;
+}
+
+.detail-item p.code {
+    font-family: 'Courier New', monospace;
+    background: white;
+    padding: 10px;
+    border-radius: 6px;
+    border: 2px solid var(--primary-color);
+    letter-spacing: 2px;
+    font-size: 1.3rem;
+}
+
+.detail-item p.status-active {
+    color: var(--success-color);
+    background: rgba(0, 208, 132, 0.1);
+    padding: 8px 12px;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+/* Messages */
+.success-message {
+    font-size: 1.2rem;
+    color: var(--success-color);
+    font-weight: 600;
+    margin: 20px 0;
+}
+
+.error-message {
+    background: rgba(255, 71, 87, 0.1);
+    border: 2px solid var(--error-color);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    color: var(--error-color);
+    font-weight: 500;
+}
+
+.instruction {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--light-bg);
+    border-radius: 8px;
+}
+
+.instruction.error-instruction {
+    background: rgba(255, 71, 87, 0.05);
+    color: var(--error-color);
+}
+
+.instruction.warning-instruction {
+    background: rgba(255, 165, 2, 0.05);
+    color: var(--warning-color);
+}
+
+/* Buttons */
+.btn {
+    padding: 16px 28px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    width: 100%;
+    margin-top: 15px;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success-color) 0%, #00a86b 100%);
+    color: white;
+}
+
+.btn-success:hover {
+    box-shadow: 0 8px 20px rgba(0, 208, 132, 0.3);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    box-shadow: 0 8px 20px rgba(212, 175, 55, 0.3);
+}
+
+.btn-secondary {
+    background: var(--light-bg);
+    color: var(--secondary-color);
+    border: 2px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-large {
+    padding: 18px 28px;
+    font-size: 1.05rem;
+}
+
+/* Loading Spinner */
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 20px;
+    background: var(--light-bg);
+    border-top: 1px solid var(--border-color);
+}
+
+.footer-logo {
+    max-width: 100px;
+    height: auto;
+    margin-bottom: 10px;
+    opacity: 0.7;
+}
+
+.footer p {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .container {
+        border-radius: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .state {
+        padding: 30px 20px;
+    }
+
+    h1 {
+        font-size: 1.6rem;
+    }
+
+    .success-badge,
+    .error-badge,
+    .warning-badge {
+        font-size: 2.5rem;
+    }
+
+    .success-badge.large {
+        font-size: 3rem;
+    }
+
+    .detail-item p.code {
+        font-size: 1.1rem;
+        letter-spacing: 1px;
+    }
+
+    .btn {
+        padding: 14px 20px;
+        font-size: 0.95rem;
+    }
+}

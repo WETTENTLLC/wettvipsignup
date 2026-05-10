@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WETT VIP - Admin Dashboard</title>
+    <link rel="stylesheet" href="admin-styles.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="public/New_Wett_Logo_Pink-removebg-preview%20(1).png" alt="WETT Logo" class="sidebar-logo">
+                <h2>WETT Admin</h2>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-section="overview">
+                    📊 Overview
+                </button>
+                <button class="nav-item" data-section="venues">
+                    🎭 Venues
+                </button>
+                <button class="nav-item" data-section="models">
+                    🏷️ NFC Models
+                </button>
+                <button class="nav-item" data-section="analytics">
+                    📈 Analytics
+                </button>
+                <button class="nav-item" data-section="passes">
+                    🎟️ Passes
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>Logged in as: <strong>Admin</strong></p>
+                <button class="btn-logout">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Overview Section -->
+            <section id="overview-section" class="section active">
+                <h1>Dashboard Overview</h1>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-info">
+                            <p class="stat-label">Total Leads</p>
+                            <p class="stat-value" id="totalLeads">0</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">🎟️</div>
+                        <div class="stat-info">
+                            <p class="stat-label">Passes Generated</p>
+                            <p class="stat-value" id="totalPasses">0</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-info">
+                            <p class="stat-label">Passes Redeemed</p>
+                            <p class="stat-value" id="redeemedPasses">0</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-info">
+                            <p class="stat-label">Revenue This Month</p>
+                            <p class="stat-value" id="monthlyRevenue">$0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <h2>Quick Actions</h2>
+                    <button class="btn btn-primary" onclick="switchSection('venues')">+ Add Venue</button>
+                    <button class="btn btn-secondary" onclick="switchSection('models')">+ Create Model</button>
+                </div>
+            </section>
+
+            <!-- Venues Section -->
+            <section id="venues-section" class="section">
+                <div class="section-header">
+                    <h1>Manage Venues</h1>
+                    <button class="btn btn-primary" onclick="openVenueForm('new')">+ Add Venue</button>
+                </div>
+
+                <!-- Add/Edit Venue Form -->
+                <div id="venueForm" class="form-panel hidden">
+                    <h2 id="venueFormTitle">Add New Venue</h2>
+                    <form id="venueFormElement">
+                        <div class="form-group">
+                            <label for="venueName">Venue Name *</label>
+                            <input type="text" id="venueName" required placeholder="Wolf Den Bar & Grill">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="venueAddress">Address *</label>
+                            <input type="text" id="venueAddress" required placeholder="501 Ralston St, Reno, NV 89503">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="venueOffer">Offer/Benefit *</label>
+                            <input type="text" id="venueOffer" required placeholder="Free Drink Pass">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="venueIcon">Emoji Icon</label>
+                            <input type="text" id="venueIcon" placeholder="🍺" maxlength="2">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="venueFee">WETT Fee Per Pass ($) *</label>
+                            <input type="number" id="venueFee" step="0.01" min="0" required placeholder="2.50">
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-success">Save Venue</button>
+                            <button type="button" class="btn btn-secondary" onclick="closeVenueForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Venues List -->
+                <div id="venuesList" class="list-container">
+                    <p class="empty-state">No venues yet. Create one to get started!</p>
+                </div>
+            </section>
+
+            <!-- NFC Models Section -->
+            <section id="models-section" class="section">
+                <div class="section-header">
+                    <h1>NFC Models & Tags</h1>
+                    <button class="btn btn-primary" onclick="openModelForm('new')">+ Create Model</button>
+                </div>
+
+                <!-- Add/Edit Model Form -->
+                <div id="modelForm" class="form-panel hidden">
+                    <h2 id="modelFormTitle">Create NFC Model</h2>
+                    <form id="modelFormElement">
+                        <div class="form-group">
+                            <label for="modelName">Model Name *</label>
+                            <input type="text" id="modelName" required placeholder="model-bar-entrance">
+                            <small>Use lowercase, hyphens only (no spaces)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="modelDescription">Description</label>
+                            <input type="text" id="modelDescription" placeholder="Bar entrance NFC tag (premium spot)">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="modelLocation">Physical Location</label>
+                            <input type="text" id="modelLocation" placeholder="At the bar entrance, eye level">
+                        </div>
+
+                        <div class="form-info">
+                            <p><strong>URL to Program:</strong></p>
+                            <code id="modelUrl" class="url-code">https://wett.vip/tag/model-name</code>
+                            <button type="button" class="btn btn-small" onclick="copyToClipboard()">📋 Copy</button>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-success">Create Model</button>
+                            <button type="button" class="btn btn-secondary" onclick="closeModelForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Models List -->
+                <div id="modelsList" class="list-container">
+                    <p class="empty-state">No models yet. Create one to get started!</p>
+                </div>
+            </section>
+
+            <!-- Analytics Section -->
+            <section id="analytics-section" class="section">
+                <h1>Analytics & Reports</h1>
+
+                <div class="filter-bar">
+                    <input type="text" id="modelFilterInput" placeholder="Filter by model...">
+                    <select id="timeRangeSelect">
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                        <option value="90d">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h3>Performance by Model</h3>
+                        <div id="modelPerformance" class="performance-list">
+                            <p class="loading">Loading data...</p>
+                        </div>
+                    </div>
+
+                    <div class="analytics-card">
+                        <h3>Venue Rankings</h3>
+                        <div id="venueRankings" class="rankings-list">
+                            <p class="loading">Loading data...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Passes Section -->
+            <section id="passes-section" class="section">
+                <h1>Recent Passes</h1>
+
+                <div class="filter-bar">
+                    <input type="text" id="passFilterInput" placeholder="Search by phone or code...">
+                    <select id="passStatusSelect">
+                        <option value="all">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="used">Redeemed</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                </div>
+
+                <div id="passesList" class="table-container">
+                    <table class="passes-table">
+                        <thead>
+                            <tr>
+                                <th>Pass Code</th>
+                                <th>Phone</th>
+                                <th>Venue</th>
+                                <th>Created</th>
+                                <th>Status</th>
+                                <th>Redeemed</th>
+                            </tr>
+                        </thead>
+                        <tbody id="passesTableBody">
+                            <tr><td colspan="6" class="empty">No passes yet</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="admin-dashboard.js"></script>
+</body>
+</html>

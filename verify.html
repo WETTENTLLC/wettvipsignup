@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WETT VIP Pass Verification</title>
+    <link rel="stylesheet" href="verify-styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Loading State -->
+        <div id="loadingState" class="state active">
+            <div class="spinner"></div>
+            <p>Verifying pass...</p>
+        </div>
+
+        <!-- Valid Pass -->
+        <div id="validState" class="state">
+            <div class="success-badge">✅</div>
+            <h1>Valid Pass</h1>
+            
+            <div class="pass-details">
+                <div class="detail-item">
+                    <label>Pass Code</label>
+                    <p id="passCodeDisplay" class="code"></p>
+                </div>
+
+                <div class="detail-item">
+                    <label>Venue</label>
+                    <p id="venueDisplay"></p>
+                </div>
+
+                <div class="detail-item">
+                    <label>Offer</label>
+                    <p id="offerDisplay"></p>
+                </div>
+
+                <div class="detail-item">
+                    <label>Customer Phone</label>
+                    <p id="phoneDisplay"></p>
+                </div>
+
+                <div class="detail-item">
+                    <label>Status</label>
+                    <p id="statusDisplay" class="status-active">Active Pass</p>
+                </div>
+            </div>
+
+            <button id="confirmBtn" class="btn btn-success btn-large">
+                ✓ Confirm Entry
+            </button>
+
+            <p class="instruction">
+                Staff: Click "Confirm Entry" to check in customer
+            </p>
+        </div>
+
+        <!-- Invalid Pass -->
+        <div id="invalidState" class="state">
+            <div class="error-badge">❌</div>
+            <h1>Invalid Pass</h1>
+            
+            <div class="error-message">
+                <p id="errorMessageDisplay"></p>
+            </div>
+
+            <button class="btn btn-secondary btn-large" onclick="location.reload()">
+                Try Again
+            </button>
+
+            <p class="instruction error-instruction">
+                This pass is either invalid, expired, or already used.
+                Contact WETT support if there's an issue.
+            </p>
+        </div>
+
+        <!-- Already Used -->
+        <div id="usedState" class="state">
+            <div class="warning-badge">⚠️</div>
+            <h1>Pass Already Used</h1>
+            
+            <div class="pass-details">
+                <div class="detail-item">
+                    <label>Redeemed At</label>
+                    <p id="usedTimeDisplay"></p>
+                </div>
+
+                <div class="detail-item">
+                    <label>Venue</label>
+                    <p id="usedVenueDisplay"></p>
+                </div>
+            </div>
+
+            <p class="instruction warning-instruction">
+                This pass has already been used. 
+                Customer should get a new pass if needed.
+            </p>
+
+            <button class="btn btn-secondary btn-large" onclick="location.reload()">
+                Scan Another Pass
+            </button>
+        </div>
+
+        <!-- Success Confirmation -->
+        <div id="successState" class="state">
+            <div class="success-badge large">✨</div>
+            <h1>Entry Confirmed!</h1>
+            
+            <p class="success-message">
+                Customer has been checked in.
+            </p>
+
+            <div class="pass-details">
+                <div class="detail-item">
+                    <label>Name</label>
+                    <p id="successNameDisplay"></p>
+                </div>
+                <div class="detail-item">
+                    <label>Time In</label>
+                    <p id="successTimeDisplay"></p>
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-large" onclick="location.reload()">
+                Scan Next Customer
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <img src="public/New_Wett_Logo_Pink-removebg-preview%20(1).png" alt="WETT Logo" class="footer-logo">
+            <p>Powered by WETT VIP</p>
+        </footer>
+    </div>
+
+    <script src="verify-script.js"></script>
+</body>
+</html>

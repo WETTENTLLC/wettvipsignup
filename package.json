@@ -1,0 +1,36 @@
+{
+  "name": "wett-vip-portal-backend",
+  "version": "1.0.0",
+  "description": "Backend for WETT VIP Portal - NFC tag tracking and pass generation",
+  "main": "backend-example.js",
+  "scripts": {
+    "start": "node backend-example.js",
+    "dev": "nodemon backend-example.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "qrcode": "^1.5.2",
+    "twilio": "^3.77.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "nodemon": "^2.0.20"
+  },
+  "keywords": [
+    "wett",
+    "vip",
+    "portal",
+    "nfc",
+    "pass",
+    "qr-code",
+    "sms"
+  ],
+  "author": "WETT",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

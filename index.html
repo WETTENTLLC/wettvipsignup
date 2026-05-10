@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WETT VIP Portal - Unlock Your Passes</title>
+    <link rel="icon" type="image/png" href="public/New_Wett_Logo_Pink-removebg-preview%20(1).png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <img src="public/New_Wett_Logo_Pink-removebg-preview%20(1).png" alt="WETT VIP Logo" class="logo-image">
+            </div>
+            <p class="tagline">Unlock Your Secret Map to the City</p>
+        </header>
+
+        <!-- Step 1: Data Capture Form -->
+        <section id="captureForm" class="form-section active">
+            <div class="form-wrapper">
+                <h2>Welcome to the WETT VIP Portal</h2>
+                <p class="form-description">Enter your info to claim exclusive venue passes</p>
+                
+                <form id="dataForm">
+                    <div class="form-group">
+                        <label for="name">Full Name *</label>
+                        <input 
+                            type="text" 
+                            id="name" 
+                            name="name" 
+                            placeholder="Enter your full name"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Phone Number *</label>
+                        <input 
+                            type="tel" 
+                            id="phone" 
+                            name="phone" 
+                            placeholder="(555) 123-4567"
+                            required
+                        >
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-large">
+                        Unlock My Passes
+                    </button>
+                </form>
+
+                <p class="privacy-notice">
+                    Your data is safe with us. We'll text your passes & VIP updates here.
+                </p>
+            </div>
+        </section>
+
+        <!-- Step 2: Venue Selection (Hidden until form submission) -->
+        <section id="venuePortal" class="venue-section">
+            <div class="portal-header">
+                <h2>Your VIP Passes</h2>
+                <p class="welcome-message">Hey <span id="displayName"></span>, select which venue you're heading to:</p>
+            </div>
+
+            <div id="venueList" class="venue-list">
+                <!-- Venues will be dynamically inserted here -->
+            </div>
+
+            <button id="resetForm" class="btn btn-secondary">
+                Go Back
+            </button>
+        </section>
+
+        <!-- Step 3: Pass Generated (Hidden until venue selection) -->
+        <section id="passGenerated" class="pass-section">
+            <div class="pass-wrapper">
+                <h2>Your VIP Pass is Ready! 🎉</h2>
+                <p class="pass-message">We're texting this to <span id="displayPhone"></span></p>
+                
+                <div class="qr-code-container">
+                    <div id="qrCode" class="qr-code"></div>
+                </div>
+
+                <div class="pass-details">
+                    <p><strong>Venue:</strong> <span id="selectedVenue"></span></p>
+                    <p><strong>Offer:</strong> <span id="selectedOffer"></span></p>
+                    <p><strong>Code:</strong> <span id="passCode"></span></p>
+                </div>
+
+                <p class="confirmation-message">
+                    ✓ Pass saved & text sent! Show this QR code at the door.
+                </p>
+
+                <button id="claimAnother" class="btn btn-primary">
+                    Claim Another Pass
+                </button>
+                <button id="done" class="btn btn-secondary">
+                    Done
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Loading spinner -->
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Processing your pass...</p>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
