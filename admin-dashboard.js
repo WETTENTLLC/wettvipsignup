@@ -29,7 +29,7 @@ function setupEventListeners() {
     
     // Model name auto-update URL
     document.getElementById('modelName').addEventListener('input', function() {
-        const url = `https://wett.vip/tag/${this.value}`;
+        const url = `${window.location.origin}/tag/${this.value}`;
         document.getElementById('modelUrl').textContent = url;
     });
 
@@ -214,7 +214,7 @@ function renderModelsList() {
                 <h3>🏷️ ${model.name}</h3>
                 <p>${model.description || 'No description'}</p>
                 <p><strong>Location:</strong> ${model.location || 'Not specified'}</p>
-                <p><strong>URL:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">wett.vip/tag/${model.name}</code></p>
+                <p><strong>URL:</strong> <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;" class="model-url-display" data-model-name="${model.name}">/tag/${model.name}</code></p>
                 <p><strong>Stats:</strong> ${totalTaps} taps → ${conversions} passes (${conversionRate}% conversion)</p>
             </div>
             <div class="item-actions">
@@ -225,6 +225,14 @@ function renderModelsList() {
         </div>
     `;
     }).join('');
+    
+    // Update URL displays with current origin
+    setTimeout(() => {
+        document.querySelectorAll('.model-url-display').forEach(el => {
+            const modelName = el.dataset.modelName;
+            el.textContent = `${window.location.origin}/tag/${modelName}`;
+        });
+    }, 0);
 }
 
 function openModelForm(modelId) {
@@ -235,7 +243,7 @@ function openModelForm(modelId) {
         document.getElementById('modelFormTitle').textContent = 'Create NFC Model';
         formElement.reset();
         formElement.dataset.modelId = '';
-        document.getElementById('modelUrl').textContent = 'https://wett.vip/tag/model-name';
+        document.getElementById('modelUrl').textContent = `${window.location.origin}/tag/model-name`;
     } else {
         const model = models.find(m => m.id === modelId);
         if (model) {
@@ -243,7 +251,7 @@ function openModelForm(modelId) {
             document.getElementById('modelName').value = model.name;
             document.getElementById('modelDescription').value = model.description || '';
             document.getElementById('modelLocation').value = model.location || '';
-            document.getElementById('modelUrl').textContent = `https://wett.vip/tag/${model.name}`;
+            document.getElementById('modelUrl').textContent = `${window.location.origin}/tag/${model.name}`;
             formElement.dataset.modelId = modelId;
         }
     }
@@ -279,7 +287,7 @@ async function handleModelSubmit(e) {
         if (response.ok) {
             closeModelForm();
             loadModels();
-            alert(`Model created!\n\nURL to program: https://wett.vip/tag/${model.name}`);
+            alert(`Model created!\n\nURL to program: ${window.location.origin}/tag/${model.name}`);
         }
     } catch (error) {
         console.error('Error saving model:', error);
@@ -299,7 +307,7 @@ async function deleteModel(modelId) {
 }
 
 function copyModelUrl(modelName) {
-    const url = `https://wett.vip/tag/${modelName}`;
+    const url = `${window.location.origin}/tag/${modelName}`;
     copyToClipboard(url);
     alert('URL copied: ' + url);
 }
