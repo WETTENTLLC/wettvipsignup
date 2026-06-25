@@ -13,6 +13,8 @@ let formData = {
 document.addEventListener('DOMContentLoaded', async function() {
     extractModelIdFromURL();
     await loadVenues();
+    // Verify backend endpoints (non-blocking)
+    verifyBackendEndpoints();
     setupEventListeners();
     logAnalytics('page_loaded', { modelId: formData.modelId });
 });
@@ -26,8 +28,8 @@ function extractModelIdFromURL() {
         formData.modelId = pathSegments[tagIndex + 1];
         console.log('Model ID extracted:', formData.modelId);
     } else {
-        // Fallback for local testing
-        formData.modelId = 'test-model-' + Math.random().toString(36).substr(2, 9);
+        // No modelId present (do not use test fallback in production)
+        formData.modelId = null;
     }
 }
 
@@ -99,6 +101,12 @@ async function handleFormSubmit(e) {
     // Send to backend (optional)
     await sendLeadToBackend(formData);
 
+    // If there are no venues available, show the no-venues message
+    if (!VENUES || VENUES.length === 0) {
+        showNoVenuesMessage();
+        return;
+    }
+
     // Show venue portal
     showVenuePortal();
 }
@@ -114,11 +122,63 @@ async function loadVenues() {
     } catch (e) {
         console.warn('Could not load venues from backend, using defaults');
     }
-    // Fallback if no venues in DB yet
-    if (VENUES.length === 0) {
-        VENUES = [
-            { id: 'wolf-den', name: 'Wolf Den Bar & Grill', offer: 'Claim Free Drink Pass', icon: '🍺' }
-        ];
+    // If backend returns none, leave VENUES empty so UX can inform users
+}
+
+// Show the no-venues message UI
+function showNoVenuesMessage() {
+    // Switch sections
+    document.getElementById('captureForm').classList.remove('active');
+    const section = document.getElementById('noVenuesSection');
+    if (section) section.style.display = 'block';
+
+    // Personalize heading
+    const wrapper = document.querySelector('#noVenuesSection .no-venues-wrapper');
+    if (wrapper) {
+        const h2 = wrapper.querySelector('h2');
+        if (h2) {
+            // Prefer the user's first name. Don't show placeholder/test values.
+            const rawName = (formData.name || '').trim();
+            let first = rawName.split(' ')[0] || '';
+            if (!first || /test/i.test(first) || /^test-model/i.test(first)) {
+                // Try to clean the full name of test markers
+                const cleaned = rawName.replace(/test-model-[\w-]+/ig, '').replace(/test/ig, '').trim();
+                first = cleaned.split(' ')[0] || '';
+            }
+            if (!first) first = 'friend';
+            h2.textContent = `Thanks ${first} — you're on the list!`;
+        }
+    }
+
+    // Bind Done button
+    const doneBtn = document.getElementById('noVenuesDone');
+    if (doneBtn && !doneBtn._bound) {
+        doneBtn.addEventListener('click', () => {
+            document.getElementById('noVenuesSection').style.display = 'none';
+            resetToForm();
+        });
+        doneBtn._bound = true;
+    }
+}
+
+// Verify key backend endpoints are reachable and log status
+async function verifyBackendEndpoints() {
+    try {
+        const endpoints = ['/api/admin/venues', '/api/admin/stats'];
+        for (const ep of endpoints) {
+            try {
+                const res = await fetch(ep);
+                if (res.ok) {
+                    console.log(`✅ Backend reachable: ${ep}`);
+                } else {
+                    console.warn(`⚠️ Backend endpoint returned ${res.status}: ${ep}`);
+                }
+            } catch (e) {
+                console.warn(`❌ Backend unreachable: ${ep}`, e);
+            }
+        }
+    } catch (e) {
+        console.error('Error verifying backend endpoints', e);
     }
 }
 
@@ -200,36 +260,46 @@ async function handleVenueSelection(venueId) {
     showLoadingSpinner();
 
     // Simulate backend processing (QR code generation, SMS sending)
-    await processPassGeneration(venue);
+    const backendResult = await processPassGeneration(venue);
 
     // Hide loading
     hideLoadingSpinner();
 
     // Show pass
-    showPassGenerated(venue);
+    showPassGenerated(venue, backendResult);
 }
 
 // Process pass generation
 async function processPassGeneration(venue) {
-    return new Promise((resolve) => {
-        // Simulate backend processing time (500-1000ms)
-        setTimeout(() => {
-            // In production, this would call your backend API:
-            // POST /api/passes with venue ID, phone, etc.
-            // Backend would:
-            // 1. Generate unique pass code
-            // 2. Create QR code
-            // 3. Send SMS
-            
-            resolve();
-        }, 800);
-    });
+    // Try calling the backend /api/passes endpoint. If it fails, fall back to simulated pass.
+    try {
+        const res = await fetch('/api/passes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: formData.phone, venueId: venue.id, modelId: formData.modelId })
+        });
+
+        if (res.ok) {
+            const json = await res.json();
+            // Expecting { success, passCode, qrCodeUrl }
+            return {
+                passCode: json.passCode,
+                qrCodeUrl: json.qrCodeUrl
+            };
+        }
+    } catch (e) {
+        console.warn('Backend /api/passes unavailable, falling back to client-side generation', e);
+    }
+
+    // Fallback: simulate generation and return a locally-created passCode
+    await new Promise(r => setTimeout(r, 800));
+    return { passCode: generatePassCode(), qrCodeUrl: null };
 }
 
 // Show pass generated screen
-function showPassGenerated(venue) {
-    // Generate unique pass code
-    const passCode = generatePassCode();
+function showPassGenerated(venue, backendResult = null) {
+    // Choose passCode from backend if available
+    const passCode = backendResult && backendResult.passCode ? backendResult.passCode : generatePassCode();
 
     // Update display
     document.getElementById('displayPhone').textContent = formData.phone;
@@ -237,8 +307,17 @@ function showPassGenerated(venue) {
     document.getElementById('selectedOffer').textContent = venue.offer;
     document.getElementById('passCode').textContent = passCode;
 
-    // Generate QR code
-    generateQRCode(passCode, venue.id);
+    // Generate QR code (use backend-provided URL if present)
+    if (backendResult && backendResult.qrCodeUrl) {
+        const qrContainer = document.getElementById('qrCode');
+        qrContainer.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = backendResult.qrCodeUrl;
+        img.alt = 'VIP Pass QR Code';
+        qrContainer.appendChild(img);
+    } else {
+        generateQRCode(passCode, venue.id);
+    }
 
     // Switch sections
     document.getElementById('venuePortal').classList.remove('active');
