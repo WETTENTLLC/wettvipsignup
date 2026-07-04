@@ -26,10 +26,100 @@ function setBackendStatus(isAvailable) {
     }
 }
 
+function showLoginOverlay(message) {
+    const overlay = document.getElementById('adminLoginOverlay');
+    if (!overlay) return;
+    overlay.classList.remove('hidden');
+    if (message) {
+        const note = overlay.querySelector('.login-note');
+        if (note) note.textContent = message;
+    }
+}
+
+function hideLoginOverlay() {
+    const overlay = document.getElementById('adminLoginOverlay');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+}
+
+async function adminFetch(path, options = {}) {
+    const res = await fetch(path, {
+        credentials: 'same-origin',
+        ...options,
+    });
+    if (res.status === 401) {
+        showLoginOverlay('Your admin session has expired. Please log in again.');
+        throw new Error('Unauthorized');
+    }
+    return res;
+}
+
+async function loadStats() {
+    try {
+        const res = await adminFetch('/api/admin/stats');
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || `Stats request failed: ${res.status}`);
+        }
+        stats = await res.json();
+        document.getElementById('totalLeads').textContent = stats.totalLeads || 0;
+        document.getElementById('totalPasses').textContent = stats.totalPasses || 0;
+        document.getElementById('redeemedPasses').textContent = (stats.venueStats
+            ? Object.values(stats.venueStats).reduce((sum, item) => sum + (item.redeemed || 0), 0)
+            : 0);
+        document.getElementById('monthlyRevenue').textContent = '$' + ((stats.totalPasses || 0) * 2.5).toFixed(2);
+        setBackendStatus(true);
+        updateAnalytics();
+    } catch (error) {
+        console.error('Unable to load admin stats:', error);
+        stats = {};
+        setBackendStatus(false);
+        if (error.message === 'Unauthorized') return;
+    }
+}
+
+async function loadDashboardData() {
+    hideLoginOverlay();
+    await Promise.allSettled([
+        loadStats(),
+        loadVenues(),
+        loadModels(),
+        loadPasses(),
+        loadEventsAdmin()
+    ]);
+}
+
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
     loadDashboardData();
     setupEventListeners();
+
+    const loginForm = document.getElementById('adminLoginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const username = document.getElementById('adminLoginUser').value.trim();
+            const password = document.getElementById('adminLoginPassword').value;
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ username, password })
+                });
+                if (!res.ok) {
+                    const errBody = await res.json().catch(() => ({}));
+                    throw new Error(errBody.error || 'Login failed');
+                }
+                hideLoginOverlay();
+                await loadDashboardData();
+                alert('Login successful. Dashboard data is now available.');
+            } catch (err) {
+                console.error('Admin login failed', err);
+                alert(err.message || 'Unable to log in');
+            }
+        });
+    }
 });
 
 // Setup event listeners
@@ -46,6 +136,35 @@ function setupEventListeners() {
     
     // Model form
     document.getElementById('modelFormElement').addEventListener('submit', handleModelSubmit);
+
+    // Event form
+    const ef = document.getElementById('eventFormElement');
+    if (ef) ef.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const title = document.getElementById('eventTitle').value.trim();
+        const image = document.getElementById('eventImage').value.trim();
+        const description = document.getElementById('eventDesc').value.trim();
+        const date = document.getElementById('eventDate').value ? new Date(document.getElementById('eventDate').value).toISOString() : new Date().toISOString();
+
+        if (!title) return alert('Title is required');
+
+        try {
+            const res = await adminFetch('/api/admin/events', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, image, description, date })
+            });
+            if (!res.ok) {
+                const errBody = await res.json().catch(() => ({}));
+                throw new Error(errBody.error || 'Failed to create event');
+            }
+            closeEventForm();
+            await loadEventsAdmin();
+            alert('Event created and notifications sent');
+        } catch (err) {
+            console.error('Create event failed', err);
+            alert(err.message || 'Unable to create event');
+        }
+    });
     
     // Model name auto-update URL
     document.getElementById('modelName').addEventListener('input', function() {
@@ -114,7 +233,7 @@ function setupEventListeners() {
 // ============ EVENTS (Admin) ============
 async function loadEventsAdmin() {
     try {
-        const res = await fetch('/api/admin/events');
+        const res = await adminFetch('/api/admin/events');
         if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));
             throw new Error(errBody.error || `Events request failed: ${res.status}`);
@@ -126,6 +245,7 @@ async function loadEventsAdmin() {
         console.error('Unable to load events from backend:', e);
         renderEventsAdmin([]);
         setBackendStatus(false);
+        if (e.message === 'Unauthorized') return;
     }
 }
 
@@ -166,165 +286,12 @@ function closeEventForm() {
     document.getElementById('eventForm').classList.add('hidden');
 }
 
-function setupEventListeners() {
-    // Navigation
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', function() {
-            switchSection(this.dataset.section);
-        });
-    });
-
-    // Venue form
-    document.getElementById('venueFormElement').addEventListener('submit', handleVenueSubmit);
-    
-    // Model form
-    document.getElementById('modelFormElement').addEventListener('submit', handleModelSubmit);
-    
-    // Event form
-    const ef = document.getElementById('eventFormElement');
-    if (ef) ef.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const title = document.getElementById('eventTitle').value.trim();
-        const image = document.getElementById('eventImage').value.trim();
-        const description = document.getElementById('eventDesc').value.trim();
-        const date = document.getElementById('eventDate').value ? new Date(document.getElementById('eventDate').value).toISOString() : new Date().toISOString();
-
-        if (!title) return alert('Title is required');
-
-        try {
-            const res = await fetch('/api/admin/events', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, image, description, date })
-            });
-            if (!res.ok) {
-                const errBody = await res.json().catch(() => ({}));
-                throw new Error(errBody.error || 'Failed to create event');
-            }
-            closeEventForm();
-            await loadEventsAdmin();
-            alert('Event created and notifications sent');
-        } catch (err) {
-            console.error('Create event failed', err);
-            alert('Unable to create event');
-        }
-    });
-
-    // Model name auto-update URL
-    document.getElementById('modelName').addEventListener('input', function() {
-        const url = `${window.location.origin}/tag/${this.value}`;
-        document.getElementById('modelUrl').textContent = url;
-    });
-
-    // Analytics filters
-    document.getElementById('modelFilterInput').addEventListener('input', filterAnalytics);
-    document.getElementById('timeRangeSelect').addEventListener('change', filterAnalytics);
-
-    // Passes filter
-    document.getElementById('passFilterInput').addEventListener('input', filterPasses);
-    document.getElementById('passStatusSelect').addEventListener('change', filterPasses);
-
-    // Logout
-    document.querySelector('.btn-logout').addEventListener('click', logout);
-
-    // Global click delegation for dashboard buttons
-    document.body.addEventListener('click', function(event) {
-        const target = event.target.closest('[data-action]');
-        if (!target) return;
-
-        const action = target.dataset.action;
-        const payload = target.dataset.payload;
-        switch (action) {
-            case 'switch-section':
-                switchSection(payload);
-                break;
-            case 'open-venue-form':
-                openVenueForm(payload);
-                break;
-            case 'close-venue-form':
-                closeVenueForm();
-                break;
-            case 'open-model-form':
-                openModelForm(payload);
-                break;
-            case 'close-model-form':
-                closeModelForm();
-                break;
-            case 'copy-model-url':
-                copyModelUrl(payload);
-                break;
-            case 'delete-venue':
-                deleteVenue(payload);
-                break;
-            case 'delete-model':
-                deleteModel(payload);
-                break;
-            case 'open-event-form':
-                openEventForm(payload);
-                break;
-            case 'close-event-form':
-                closeEventForm();
-                break;
-            case 'delete-event':
-                deleteEvent(payload);
-                break;
-            default:
-                break;
-        }
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    loadDashboardData();
-    setupEventListeners();
-});
-
-async function deleteEvent(id) {
-    if (!confirm('Delete this event?')) return;
-    try {
-        const res = await fetch(`/api/admin/events/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Delete failed');
-        await loadEventsAdmin();
-    } catch (e) { console.error('Delete event failed', e); alert('Unable to delete event'); }
-}
-
-// Load dashboard data
-async function loadDashboardData() {
-    try {
-        // Fetch stats
-        const statsRes = await fetch('/api/admin/stats');
-        if (!statsRes.ok) {
-            throw new Error(`Stats request failed: ${statsRes.status}`);
-        }
-        stats = await statsRes.json();
-        setBackendStatus(true);
-
-        // Update stats display
-        document.getElementById('totalLeads').textContent = stats.totalLeads || 0;
-        document.getElementById('totalPasses').textContent = stats.totalPasses || 0;
-        document.getElementById('redeemedPasses').textContent = 
-            Object.values(stats.venueStats || {}).reduce((sum, v) => sum + (v.redeemed || 0), 0);
-        document.getElementById('monthlyRevenue').textContent = 
-            '$' + (Object.values(stats.venueStats || {}).reduce((sum, v) => sum + (v.redeemed * 2.50), 0)).toFixed(2);
-    } catch (error) {
-        console.error('Error loading stats:', error);
-        setBackendStatus(false);
-        document.getElementById('totalLeads').textContent = 0;
-        document.getElementById('totalPasses').textContent = 0;
-        document.getElementById('redeemedPasses').textContent = 0;
-        document.getElementById('monthlyRevenue').textContent = '$0';
-    }
-
-    await loadVenues();
-    await loadModels();
-    await loadPasses();
-    updateAnalytics();
-}
 
 // ============ VENUE MANAGEMENT ============
 
 async function loadVenues() {
     try {
-        const res = await fetch('/api/admin/venues');
+        const res = await adminFetch('/api/admin/venues');
         if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));
             throw new Error(errBody.error || `Venues request failed: ${res.status}`);
@@ -337,6 +304,7 @@ async function loadVenues() {
         venues = [];
         renderVenuesList();
         setBackendStatus(false);
+        if (error.message === 'Unauthorized') return;
     }
 }
 
@@ -404,7 +372,7 @@ async function handleVenueSubmit(e) {
     };
 
     try {
-        const response = await fetch('/api/admin/venues', {
+        const response = await adminFetch('/api/admin/venues', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(venue)
@@ -416,7 +384,8 @@ async function handleVenueSubmit(e) {
             alert('Venue saved successfully!');
             return;
         }
-        throw new Error(`Venue API returned ${response.status}`);
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `Venue API returned ${response.status}`);
     } catch (error) {
         console.error('Unable to save venue to backend:', error);
         setBackendStatus(false);
@@ -428,7 +397,7 @@ async function deleteVenue(venueId) {
     if (!confirm('Are you sure you want to delete this venue?')) return;
 
     try {
-        const res = await fetch(`/api/admin/venues/${venueId}`, { method: 'DELETE' });
+        const res = await adminFetch(`/api/admin/venues/${venueId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`Delete venue failed: ${res.status}`);
         await loadVenues();
         return;
@@ -443,7 +412,7 @@ async function deleteVenue(venueId) {
 
 async function loadModels() {
     try {
-        const res = await fetch('/api/admin/models');
+        const res = await adminFetch('/api/admin/models');
         if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));
             throw new Error(errBody.error || `Models request failed: ${res.status}`);
@@ -456,6 +425,7 @@ async function loadModels() {
         models = [];
         renderModelsList();
         setBackendStatus(false);
+        if (error.message === 'Unauthorized') return;
     }
 }
 
@@ -544,7 +514,7 @@ async function handleModelSubmit(e) {
     }
 
     try {
-        const response = await fetch('/api/admin/models', {
+        const response = await adminFetch('/api/admin/models', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(model)
@@ -556,7 +526,8 @@ async function handleModelSubmit(e) {
             alert(`Model created!\n\nURL to program: ${window.location.origin}/tag/${model.name}`);
             return;
         }
-        throw new Error(`Models API returned ${response.status}`);
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `Models API returned ${response.status}`);
     } catch (error) {
         console.error('Unable to save model to backend:', error);
         setBackendStatus(false);
@@ -568,7 +539,7 @@ async function deleteModel(modelId) {
     if (!confirm('Are you sure you want to delete this model?')) return;
 
     try {
-        const res = await fetch(`/api/admin/models/${modelId}`, { method: 'DELETE' });
+        const res = await adminFetch(`/api/admin/models/${modelId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error(`Delete model failed: ${res.status}`);
         await loadModels();
         return;
@@ -647,7 +618,7 @@ function filterAnalytics() {
 
 async function loadPasses() {
     try {
-        const res = await fetch('/api/admin/passes');
+        const res = await adminFetch('/api/admin/passes');
         if (!res.ok) {
             const errBody = await res.json().catch(() => ({}));
             throw new Error(errBody.error || `Passes request failed: ${res.status}`);
@@ -658,6 +629,7 @@ async function loadPasses() {
         console.error('Error loading passes:', error);
         passes = [];
         renderPassesList(passes);
+        if (error.message === 'Unauthorized') return;
     }
 }
 
