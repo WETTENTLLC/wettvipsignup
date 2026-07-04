@@ -722,6 +722,7 @@ app.post('/api/admin/events', (req, res) => {
         res.status(500).json({ error: 'Failed to create event' });
     }
 });
+});
 
 // Admin: delete event
 app.delete('/api/admin/events/:id', (req, res) => {
