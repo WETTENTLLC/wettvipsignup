@@ -744,6 +744,36 @@ app.post('/api/events/:id/rsvp', async (req, res) => {
     }
 });
 
+// Public: list events (for clients)
+app.get('/api/events', (req, res) => {
+    try {
+        const out = (db.events || []).map(e => ({
+            id: e.id,
+            title: e.title || e.name,
+            description: e.description,
+            image: e.image,
+            date: e.date,
+            venueId: e.venueId
+        }));
+        res.json(out);
+    } catch (e) {
+        console.error('Error listing events', e);
+        res.status(500).json({ error: 'Failed to list events' });
+    }
+});
+
+// Public: get single event
+app.get('/api/events/:id', (req, res) => {
+    try {
+        const ev = (db.events || []).find(x => x.id === req.params.id);
+        if (!ev) return res.status(404).json({ error: 'Not found' });
+        res.json(ev);
+    } catch (e) {
+        console.error('Error getting event', e);
+        res.status(500).json({ error: 'Failed to get event' });
+    }
+});
+
 // --- BACKUPS & RESTORE ---
 app.get('/api/admin/backups', (req, res) => {
     try {
