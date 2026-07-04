@@ -142,16 +142,27 @@ function setupEventListeners() {
     if (ef) ef.addEventListener('submit', async function(e) {
         e.preventDefault();
         const title = document.getElementById('eventTitle').value.trim();
-        const image = document.getElementById('eventImage').value.trim();
+        const fileInput = document.getElementById('eventImageFile');
+        const imageFile = fileInput && fileInput.files && fileInput.files[0];
         const description = document.getElementById('eventDesc').value.trim();
         const date = document.getElementById('eventDate').value ? new Date(document.getElementById('eventDate').value).toISOString() : new Date().toISOString();
 
         if (!title) return alert('Title is required');
 
         try {
+            let imageData = '';
+            if (imageFile) {
+                imageData = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error('Unable to read image file'));
+                    reader.readAsDataURL(imageFile);
+                });
+            }
+
             const res = await adminFetch('/api/admin/events', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, image, description, date })
+                body: JSON.stringify({ title, imageData, description, date })
             });
             if (!res.ok) {
                 const errBody = await res.json().catch(() => ({}));

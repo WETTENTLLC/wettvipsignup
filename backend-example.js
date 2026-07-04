@@ -46,7 +46,7 @@ app.use(helmet({
     }
 }));
 app.use(cors());
-app.use(express.json({ limit: '10kb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use(express.static(__dirname));
 
 // Session middleware (simple memory store for now). In production use a keyed store (Redis).
@@ -652,7 +652,7 @@ app.post('/api/admin/events', (req, res) => {
     try {
         const title = sanitizeInput(req.body.title || req.body.name || 'New Event');
         const description = sanitizeInput(req.body.description || '');
-        const image = sanitizeInput(req.body.image || '');
+        const image = sanitizeInput(req.body.image || req.body.imageData || '');
         const eventDate = sanitizeInput(req.body.date || new Date().toISOString());
         const venueId = sanitizeInput(req.body.venueId || '');
         const id = `event_${Date.now()}`;
