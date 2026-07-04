@@ -31,6 +31,9 @@
                 <button class="nav-item" data-section="passes">
                     🎟️ Passes
                 </button>
+                <button class="nav-item" data-section="events">
+                    📅 Events
+                </button>
             </nav>
 
             <div class="sidebar-footer">
@@ -246,6 +249,43 @@
                             <tr><td colspan="6" class="empty">No passes yet</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </section>
+            <!-- Events Section -->
+            <section id="events-section" class="section">
+                <div class="section-header">
+                    <h1>Events</h1>
+                    <button class="btn btn-primary" data-action="open-event-form" data-payload="new">+ Create Event</button>
+                </div>
+
+                <div id="eventForm" class="form-panel hidden">
+                    <h2>Create Event</h2>
+                    <form id="eventFormElement">
+                        <div class="form-group">
+                            <label for="eventTitle">Title *</label>
+                            <input type="text" id="eventTitle" required placeholder="Live DJ Night">
+                        </div>
+                        <div class="form-group">
+                            <label for="eventImage">Image URL</label>
+                            <input type="text" id="eventImage" placeholder="https://.../image.jpg">
+                        </div>
+                        <div class="form-group">
+                            <label for="eventDesc">Description</label>
+                            <textarea id="eventDesc" rows="3" placeholder="Short description"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="eventDate">Date/Time</label>
+                            <input type="datetime-local" id="eventDate">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-success">Save Event</button>
+                            <button type="button" class="btn btn-secondary" data-action="close-event-form">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="eventsList" class="list-container">
+                    <p class="empty-state">No events yet. Create one to notify your customers.</p>
                 </div>
             </section>
         </main>

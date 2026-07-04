@@ -96,10 +96,110 @@ function setupEventListeners() {
             case 'delete-model':
                 deleteModel(payload);
                 break;
+            case 'open-event-form':
+                openEventForm(payload);
+                break;
+            case 'close-event-form':
+                closeEventForm();
+                break;
+            case 'delete-event':
+                deleteEvent(payload);
+                break;
             default:
                 break;
         }
     });
+}
+
+// ============ EVENTS (Admin) ============
+async function loadEventsAdmin() {
+    try {
+        const res = await fetch('/api/admin/events');
+        if (!res.ok) throw new Error(`Events request failed: ${res.status}`);
+        const evs = await res.json();
+        renderEventsAdmin(evs);
+        setBackendStatus(true);
+    } catch (e) {
+        console.error('Unable to load events from backend:', e);
+        renderEventsAdmin([]);
+        setBackendStatus(false);
+    }
+}
+
+function renderEventsAdmin(evs) {
+    const container = document.getElementById('eventsList');
+    if (!evs || evs.length === 0) {
+        container.innerHTML = '<p class="empty-state">No events yet. Create one to notify your customers.</p>';
+        return;
+    }
+
+    container.innerHTML = evs.map(ev => `
+        <div class="item-card">
+            ${ev.image ? `<img src="${ev.image}" class="event-thumb"/>` : ''}
+            <div class="item-info">
+                <h3>${ev.title}</h3>
+                <p>${ev.description || ''}</p>
+                <p><strong>Date:</strong> ${ev.date}</p>
+                <p><strong>Attendees:</strong> ${ (ev.attendees && ev.attendees.length) || 0 }</p>
+            </div>
+            <div class="item-actions">
+                <button class="btn btn-danger btn-small" data-action="delete-event" data-payload="${ev.id}">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function openEventForm(id) {
+    const form = document.getElementById('eventForm');
+    const el = document.getElementById('eventFormElement');
+    if (id === 'new') {
+        el.reset();
+        el.dataset.eventId = '';
+    }
+    form.classList.remove('hidden');
+}
+
+function closeEventForm() {
+    document.getElementById('eventForm').classList.add('hidden');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const ef = document.getElementById('eventFormElement');
+    if (ef) ef.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const title = document.getElementById('eventTitle').value.trim();
+        const image = document.getElementById('eventImage').value.trim();
+        const description = document.getElementById('eventDesc').value.trim();
+        const date = document.getElementById('eventDate').value ? new Date(document.getElementById('eventDate').value).toISOString() : new Date().toISOString();
+
+        if (!title) return alert('Title is required');
+
+        try {
+            const res = await fetch('/api/admin/events', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, image, description, date })
+            });
+            if (!res.ok) throw new Error('Failed to create event');
+            closeEventForm();
+            await loadEventsAdmin();
+            alert('Event created and notifications sent');
+        } catch (err) {
+            console.error('Create event failed', err);
+            alert('Unable to create event');
+        }
+    });
+
+    // load events for admin view
+    loadEventsAdmin();
+});
+
+async function deleteEvent(id) {
+    if (!confirm('Delete this event?')) return;
+    try {
+        const res = await fetch(`/api/admin/events/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete failed');
+        await loadEventsAdmin();
+    } catch (e) { console.error('Delete event failed', e); alert('Unable to delete event'); }
 }
 
 // Load dashboard data

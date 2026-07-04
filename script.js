@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     await Promise.all([loadVenues(), loadEvents()]);
     // Verify backend endpoints (non-blocking)
     verifyBackendEndpoints();
+    // Register service worker and subscribe for push notifications
+    try { await registerServiceWorkerAndSubscribe(); } catch(e) { console.warn('Push registration failed', e); }
     setupEventListeners();
     logAnalytics('page_loaded', { modelId: formData.modelId });
 });
@@ -217,14 +219,73 @@ function renderEventList() {
     section.classList.remove('hidden');
     eventList.innerHTML = EVENTS.map(event => `
         <div class="event-card">
-            <h4>${event.name}</h4>
+            ${event.image ? `<img src="${event.image}" alt="${event.title || event.name}" class="event-image"/>` : ''}
+            <h4>${event.title || event.name}</h4>
             <p>${event.description || 'No description available.'}</p>
             <p><strong>Date:</strong> ${event.date || 'TBA'}</p>
             <p><strong>Location:</strong> ${event.location || 'TBA'}</p>
+            <button class="btn btn-primary rsvp-btn" data-event-id="${event.id}">I'm going</button>
         </div>
     `).join('');
+
+    // Bind RSVP buttons
+    document.querySelectorAll('.rsvp-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const eventId = btn.dataset.eventId;
+            try {
+                const res = await fetch(`/api/events/${eventId}/rsvp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: formData.name, phone: formData.phone })
+                });
+                if (res.ok) {
+                    alert('You are confirmed for this event — see you there!');
+                } else {
+                    const t = await res.text();
+                    console.error('RSVP failed', res.status, t);
+                    alert('Unable to RSVP right now. Please try again later.');
+                }
+            } catch (e) { console.error('RSVP error', e); alert('Unable to RSVP right now.'); }
+        });
+    });
 }
 
+
+// Register service worker and subscribe for push notifications
+async function registerServiceWorkerAndSubscribe() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        // get public key
+        const res = await fetch('/api/public-vapid-key');
+        if (!res.ok) throw new Error('Public VAPID key not available');
+        const { publicKey } = await res.json();
+
+        const convertedVapidKey = urlBase64ToUint8Array(publicKey);
+        const subscription = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: convertedVapidKey
+        });
+
+        // send subscription to backend
+        await fetch('/api/subscribe', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription })
+        });
+    } catch (e) {
+        console.warn('Failed to subscribe to push', e);
+    }
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
 // Verify key backend endpoints are reachable and log status
 async function verifyBackendEndpoints() {
     try {

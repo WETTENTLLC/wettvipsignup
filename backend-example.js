@@ -642,11 +642,12 @@ app.post('/api/admin/events', (req, res) => {
     try {
         const title = sanitizeInput(req.body.title || req.body.name || 'New Event');
         const description = sanitizeInput(req.body.description || '');
+        const image = sanitizeInput(req.body.image || '');
         const eventDate = sanitizeInput(req.body.date || new Date().toISOString());
         const venueId = sanitizeInput(req.body.venueId || '');
         const id = `event_${Date.now()}`;
 
-        const ev = { id, title, description, date: eventDate, venueId, createdAt: new Date().toISOString() };
+        const ev = { id, title, description, image, date: eventDate, venueId, attendees: [], createdAt: new Date().toISOString() };
         db.events = db.events || [];
         db.events.push(ev);
         saveData();
@@ -688,6 +689,58 @@ app.post('/api/admin/events', (req, res) => {
     } catch (e) {
         console.error('Error creating event', e);
         res.status(500).json({ error: 'Failed to create event' });
+    }
+});
+
+// Admin: delete event
+app.delete('/api/admin/events/:id', (req, res) => {
+    try {
+        const id = req.params.id;
+        const idx = (db.events || []).findIndex(e => e.id === id);
+        if (idx < 0) return res.status(404).json({ error: 'Not found' });
+        db.events.splice(idx, 1);
+        saveData();
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Error deleting event', e);
+        res.status(500).json({ error: 'Delete failed' });
+    }
+});
+
+// Public: RSVP / activate interest for an event
+app.post('/api/events/:id/rsvp', async (req, res) => {
+    try {
+        const eventId = req.params.id;
+        const name = sanitizeInput(req.body.name || '');
+        const phone = sanitizeInput(req.body.phone || '');
+        const leadId = sanitizeInput(req.body.leadId || '');
+
+        const ev = (db.events || []).find(e => e.id === eventId || e.id === eventId);
+        if (!ev) return res.status(404).json({ error: 'Event not found' });
+
+        const attendee = {
+            id: `att_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+            name: name || null,
+            phone: phone || null,
+            leadId: leadId || null,
+            activatedAt: new Date().toISOString()
+        };
+
+        ev.attendees = ev.attendees || [];
+        ev.attendees.push(attendee);
+        saveData();
+
+        // Optional confirmation SMS
+        if (phone && twilioClient) {
+            try {
+                await sendSMS(phone, `You're confirmed for: ${ev.title} — see you there!`);
+            } catch (err) { console.error('Failed sending RSVP SMS', err); }
+        }
+
+        res.json({ success: true, attendee });
+    } catch (e) {
+        console.error('Error registering RSVP', e);
+        res.status(500).json({ error: 'Failed to register RSVP' });
     }
 });
 
