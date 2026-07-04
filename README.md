@@ -254,3 +254,50 @@ For questions or customization needs, refer to:
 ## Version History
 
 - v1.0 - Initial release with 3-step flow
+
+## Admin setup (login + environment)
+
+1. Generate a bcrypt hash for your chosen admin password (run locally):
+
+```bash
+# Linux / macOS / WSL
+node scripts/generate-hash.js 'YourPlainPassword'
+
+# Windows (PowerShell)
+node scripts/generate-hash.js "YourPlainPassword"
+```
+
+Copy the resulting hash and set it in your environment as `ADMIN_PASSWORD_HASH`. Also set a strong `SESSION_SECRET`.
+
+PowerShell (current session):
+
+```powershell
+$env:ADMIN_PASSWORD_HASH = '<paste-hash-here>'
+$env:SESSION_SECRET = 'a-long-random-secret'
+```
+
+Persist on Windows (permanent):
+
+```powershell
+setx ADMIN_PASSWORD_HASH "<paste-hash-here>"
+setx SESSION_SECRET "<your-secret>"
+```
+
+Or create a local `.env` file (do NOT commit it):
+
+```
+ADMIN_USER=admin
+ADMIN_PASSWORD_HASH=<paste-hash-here>
+SESSION_SECRET=<your-secret>
+```
+
+Start the server:
+
+```bash
+npm start
+```
+
+Security notes:
+- Never commit `.env` or real secrets to source control.
+- Use a production session store (Redis) and rotate `SESSION_SECRET` regularly.
+- Consider using an external identity provider (OAuth) for multi-admin environments.
