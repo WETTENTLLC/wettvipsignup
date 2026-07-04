@@ -400,22 +400,56 @@ app.post('/api/confirm-entry', async (req, res) => {
     // AUTH: Admin login + session middleware
     // ============================================
 
-    // Admin login - accepts JSON { username, password }
+    // Admin login - accepts JSON { username, password }.
+    // Supports multiple sources for credentials to make deployments resilient:
+    //  - process.env.ADMIN_PASSWORD_HASH (bcrypt hash)
+    //  - process.env.ADMIN_PASSWORD (plaintext, convenient for quick deploys)
+    //  - persisted `db.admin.hash` (one-time setup persisted to data.json)
+    //  - ADMIN_SETUP_TOKEN + setupToken in body to create initial admin (one-time)
     app.post('/api/admin/login', async (req, res) => {
         try {
             const username = sanitizeInput(req.body.username);
-            const password = req.body.password; // raw for bcrypt
+            const password = req.body.password; // raw for bcrypt or plaintext compare
 
             if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
 
             const adminUser = process.env.ADMIN_USER || 'admin';
-            const adminHash = process.env.ADMIN_PASSWORD_HASH || bcrypt.hashSync('password', 10);
 
             if (username !== adminUser) {
                 return res.status(401).json({ error: 'Invalid credentials' });
             }
 
-            const ok = await bcrypt.compare(password, adminHash);
+            const envHash = process.env.ADMIN_PASSWORD_HASH;
+            const envPlain = process.env.ADMIN_PASSWORD;
+            const dbAdminHash = db.admin && db.admin.hash;
+
+            let ok = false;
+
+            if (envHash) {
+                ok = await bcrypt.compare(password, envHash);
+            } else if (envPlain) {
+                // Allow quick plaintext env password for deployments where hashing isn't set up yet
+                ok = password === envPlain;
+            } else if (dbAdminHash) {
+                ok = await bcrypt.compare(password, dbAdminHash);
+            } else {
+                // If no admin configured in env or DB, allow a one-time setup when a matching
+                // ADMIN_SETUP_TOKEN is provided in the request body. This lets owners bootstrap
+                // an admin account without changing source code. The created admin hash is
+                // persisted to `data.json` so subsequent logins use the stored hash.
+                const setupToken = process.env.ADMIN_SETUP_TOKEN;
+                if (setupToken && req.body.setupToken && req.body.setupToken === setupToken) {
+                    const hashed = bcrypt.hashSync(password, 10);
+                    db.admin = { user: adminUser, hash: hashed, createdAt: new Date().toISOString() };
+                    try { saveData(); } catch (e) { console.error('Failed saving admin setup to data file', e); }
+                    ok = true;
+                    console.log('Admin account created via one-time setup token');
+                } else {
+                    // Development fallback (keeps previous behaviour) — password == 'password'
+                    ok = await bcrypt.compare(password, bcrypt.hashSync('password', 10));
+                }
+            }
+
             if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
             req.session.isAdmin = true;
