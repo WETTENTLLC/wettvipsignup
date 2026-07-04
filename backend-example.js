@@ -85,6 +85,7 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
 
 // Persistent JSON storage
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
+const BACKUPS_DIR = path.join(__dirname, 'backups');
 
 function loadData() {
     try {
@@ -99,9 +100,47 @@ function loadData() {
 
 function saveData() {
     try {
+        // Ensure backups directory exists and write a timestamped backup
+        try {
+            fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const backupFile = path.join(BACKUPS_DIR, `data-${stamp}.json`);
+            fs.writeFileSync(backupFile, JSON.stringify(db, null, 2));
+
+            // Keep only the latest N backups
+            const maxBackups = 50;
+            const files = fs.readdirSync(BACKUPS_DIR)
+                .filter(f => f.endsWith('.json'))
+                .map(f => ({ f, t: fs.statSync(path.join(BACKUPS_DIR, f)).mtime.getTime() }))
+                .sort((a, b) => b.t - a.t);
+            if (files.length > maxBackups) {
+                files.slice(maxBackups).forEach(old => {
+                    try { fs.unlinkSync(path.join(BACKUPS_DIR, old.f)); } catch (e) {}
+                });
+            }
+        } catch (bkErr) {
+            console.error('Error creating backup before save:', bkErr);
+        }
+
         fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
     } catch (e) {
         console.error('Error saving data file:', e);
+    }
+}
+
+function reloadData() {
+    try {
+        const newDb = loadData();
+        // replace arrays in-place so references remain valid
+        db.leads.length = 0; if (Array.isArray(newDb.leads)) db.leads.push(...newDb.leads);
+        db.passes.length = 0; if (Array.isArray(newDb.passes)) db.passes.push(...newDb.passes);
+        db.venues.length = 0; if (Array.isArray(newDb.venues)) db.venues.push(...newDb.venues);
+        db.models.length = 0; if (Array.isArray(newDb.models)) db.models.push(...newDb.models);
+        db.events = newDb.events || [];
+        return true;
+    } catch (e) {
+        console.error('Error reloading data after restore:', e);
+        return false;
     }
 }
 
@@ -505,6 +544,78 @@ app.get('/api/admin/passes', (req, res) => res.json(passes));
 
 // --- EVENTS LIST ---
 app.get('/api/admin/events', (req, res) => res.json(db.events || []));
+
+// --- BACKUPS & RESTORE ---
+app.get('/api/admin/backups', (req, res) => {
+    try {
+        if (!fs.existsSync(BACKUPS_DIR)) return res.json([]);
+        const files = fs.readdirSync(BACKUPS_DIR)
+            .filter(f => f.endsWith('.json'))
+            .map(f => {
+                const s = fs.statSync(path.join(BACKUPS_DIR, f));
+                return { name: f, size: s.size, mtime: s.mtime };
+            })
+            .sort((a, b) => b.mtime - a.mtime);
+        res.json(files);
+    } catch (e) {
+        console.error('Error listing backups', e);
+        res.status(500).json({ error: 'Failed to list backups' });
+    }
+});
+
+app.post('/api/admin/restore', (req, res) => {
+    try {
+        const filename = req.body && req.body.filename;
+        if (!filename) return res.status(400).json({ error: 'filename required' });
+        const src = path.join(BACKUPS_DIR, path.basename(filename));
+        if (!fs.existsSync(src)) return res.status(404).json({ error: 'Backup not found' });
+
+        fs.copyFileSync(src, DATA_FILE);
+        const ok = reloadData();
+
+        // audit
+        try {
+            const auditLine = `${new Date().toISOString()} RESTORE ${req.session && req.session.adminUser ? req.session.adminUser : 'unknown'} ${filename}\n`;
+            fs.appendFileSync(path.join(BACKUPS_DIR, 'audit.log'), auditLine);
+        } catch (auditErr) {}
+
+        if (!ok) return res.status(500).json({ error: 'Restore failed' });
+        res.json({ success: true, restored: filename });
+    } catch (e) {
+        console.error('Error restoring backup', e);
+        res.status(500).json({ error: 'Restore failed' });
+    }
+});
+
+// Bulk import models (safe add only)
+app.post('/api/admin/import-models', (req, res) => {
+    try {
+        const incoming = req.body && req.body.models;
+        if (!Array.isArray(incoming)) return res.status(400).json({ error: 'models array required' });
+        let added = 0;
+        for (const m of incoming) {
+            const name = sanitizeInput(m.name || m.displayName || '');
+            if (!name) continue;
+            const exists = models.find(x => x.name === name || x.id === m.id);
+            if (exists) continue;
+            const model = {
+                id: m.id || `model_${Date.now()}_${Math.floor(Math.random()*1000)}`,
+                name,
+                description: sanitizeInput(m.description || ''),
+                location: sanitizeInput(m.location || ''),
+                totalTaps: Number(m.totalTaps) || 0,
+                conversions: Number(m.conversions) || 0
+            };
+            models.push(model);
+            added++;
+        }
+        if (added) saveData();
+        res.json({ success: true, added });
+    } catch (e) {
+        console.error('Error importing models', e);
+        res.status(500).json({ error: 'Import failed' });
+    }
+});
 
 // ============================================
 // HELPER FUNCTIONS
