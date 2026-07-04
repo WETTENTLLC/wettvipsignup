@@ -67,9 +67,19 @@ const apiLimiter = rateLimit({
     max: 120,
     standardHeaders: true,
     legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' },
+    skip: (req) => req.path.startsWith('/api/admin/') && req.session && req.session.isAdmin
+});
+
+const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
     message: { error: 'Too many requests, please try again later.' }
 });
 
+app.use('/api/admin/', adminLimiter);
 app.use('/api/', apiLimiter);
 app.use((req, res, next) => {
     res.setHeader('Referrer-Policy', 'no-referrer');

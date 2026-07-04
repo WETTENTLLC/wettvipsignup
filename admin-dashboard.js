@@ -115,7 +115,10 @@ function setupEventListeners() {
 async function loadEventsAdmin() {
     try {
         const res = await fetch('/api/admin/events');
-        if (!res.ok) throw new Error(`Events request failed: ${res.status}`);
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || `Events request failed: ${res.status}`);
+        }
         const evs = await res.json();
         renderEventsAdmin(evs);
         setBackendStatus(true);
@@ -163,7 +166,21 @@ function closeEventForm() {
     document.getElementById('eventForm').classList.add('hidden');
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function setupEventListeners() {
+    // Navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+            switchSection(this.dataset.section);
+        });
+    });
+
+    // Venue form
+    document.getElementById('venueFormElement').addEventListener('submit', handleVenueSubmit);
+    
+    // Model form
+    document.getElementById('modelFormElement').addEventListener('submit', handleModelSubmit);
+    
+    // Event form
     const ef = document.getElementById('eventFormElement');
     if (ef) ef.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -179,7 +196,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title, image, description, date })
             });
-            if (!res.ok) throw new Error('Failed to create event');
+            if (!res.ok) {
+                const errBody = await res.json().catch(() => ({}));
+                throw new Error(errBody.error || 'Failed to create event');
+            }
             closeEventForm();
             await loadEventsAdmin();
             alert('Event created and notifications sent');
@@ -189,8 +209,73 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // load events for admin view
-    loadEventsAdmin();
+    // Model name auto-update URL
+    document.getElementById('modelName').addEventListener('input', function() {
+        const url = `${window.location.origin}/tag/${this.value}`;
+        document.getElementById('modelUrl').textContent = url;
+    });
+
+    // Analytics filters
+    document.getElementById('modelFilterInput').addEventListener('input', filterAnalytics);
+    document.getElementById('timeRangeSelect').addEventListener('change', filterAnalytics);
+
+    // Passes filter
+    document.getElementById('passFilterInput').addEventListener('input', filterPasses);
+    document.getElementById('passStatusSelect').addEventListener('change', filterPasses);
+
+    // Logout
+    document.querySelector('.btn-logout').addEventListener('click', logout);
+
+    // Global click delegation for dashboard buttons
+    document.body.addEventListener('click', function(event) {
+        const target = event.target.closest('[data-action]');
+        if (!target) return;
+
+        const action = target.dataset.action;
+        const payload = target.dataset.payload;
+        switch (action) {
+            case 'switch-section':
+                switchSection(payload);
+                break;
+            case 'open-venue-form':
+                openVenueForm(payload);
+                break;
+            case 'close-venue-form':
+                closeVenueForm();
+                break;
+            case 'open-model-form':
+                openModelForm(payload);
+                break;
+            case 'close-model-form':
+                closeModelForm();
+                break;
+            case 'copy-model-url':
+                copyModelUrl(payload);
+                break;
+            case 'delete-venue':
+                deleteVenue(payload);
+                break;
+            case 'delete-model':
+                deleteModel(payload);
+                break;
+            case 'open-event-form':
+                openEventForm(payload);
+                break;
+            case 'close-event-form':
+                closeEventForm();
+                break;
+            case 'delete-event':
+                deleteEvent(payload);
+                break;
+            default:
+                break;
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    setupEventListeners();
 });
 
 async function deleteEvent(id) {
@@ -240,7 +325,10 @@ async function loadDashboardData() {
 async function loadVenues() {
     try {
         const res = await fetch('/api/admin/venues');
-        if (!res.ok) throw new Error(`Venues request failed: ${res.status}`);
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || `Venues request failed: ${res.status}`);
+        }
         venues = await res.json();
         renderVenuesList();
         setBackendStatus(true);
@@ -356,7 +444,10 @@ async function deleteVenue(venueId) {
 async function loadModels() {
     try {
         const res = await fetch('/api/admin/models');
-        if (!res.ok) throw new Error(`Models request failed: ${res.status}`);
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || `Models request failed: ${res.status}`);
+        }
         models = await res.json();
         renderModelsList();
         setBackendStatus(true);
@@ -557,10 +648,16 @@ function filterAnalytics() {
 async function loadPasses() {
     try {
         const res = await fetch('/api/admin/passes');
+        if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(errBody.error || `Passes request failed: ${res.status}`);
+        }
         passes = await res.json();
         renderPassesList(passes);
     } catch (error) {
         console.error('Error loading passes:', error);
+        passes = [];
+        renderPassesList(passes);
     }
 }
 
