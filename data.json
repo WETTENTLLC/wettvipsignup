@@ -1,0 +1,21 @@
+{
+  "leads": [],
+  "passes": [],
+  "venues": [],
+  "models": [
+    {
+      "id": "model_cherish",
+      "name": "cherish",
+      "description": "Restored model for Cherish",
+      "location": "Original Cherish NFC tag",
+      "totalTaps": 0,
+      "conversions": 0
+    }
+  ],
+  "subscriptions": [],
+  "events": [],
+  "vapid": {
+    "publicKey": "BHw9Y0c5_5Zl4tlnSSsz4rAi_rVL_D91RUTXBBRY8M4SPtV1IusfXlV6L0OjIiuEa3gXZU7I_wR2mTSMiJWkagA",
+    "privateKey": "zgn3hep30d4tr1nVbaB-DIpvwCMKVaHiSvHfgX5crlQ"
+  }
+}
