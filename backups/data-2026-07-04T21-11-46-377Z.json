@@ -1,0 +1,12 @@
+{
+  "leads": [],
+  "passes": [],
+  "venues": [],
+  "models": [],
+  "events": [],
+  "subscriptions": [],
+  "vapid": {
+    "publicKey": "BAF4_9W9aqU7J4wMTE76v3Ed0LRA6vm3bmvuXaDdF-UZbH3UJ8dnQRzFMrREKpUM2eTxgO_UYvH8V-08XkxZxyU",
+    "privateKey": "xpxsEqIoH6IktU9ZTWxA5Z1J3EFYLP3oMo_bkOxGGSk"
+  }
+}

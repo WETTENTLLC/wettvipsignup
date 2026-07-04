@@ -1,0 +1,16 @@
+{
+  "leads": [
+    {
+      "id": "lead_1783197253459",
+      "name": "Alice",
+      "phone": "(123) 456-7890",
+      "modelId": "cherish",
+      "timestamp": "2026-07-04T20:34:13.459Z",
+      "status": "captured"
+    }
+  ],
+  "passes": [],
+  "venues": [],
+  "models": [],
+  "events": []
+}

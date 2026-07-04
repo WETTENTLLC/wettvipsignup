@@ -1,0 +1,28 @@
+{
+  "leads": [
+    {
+      "id": "lead_1783197850191",
+      "name": "Alice",
+      "phone": "(123) 456-7890",
+      "modelId": "cherish",
+      "timestamp": "2026-07-04T20:44:10.191Z",
+      "status": "captured"
+    }
+  ],
+  "passes": [
+    {
+      "id": "pass_1783197850444",
+      "passCode": "5SVEJGJL",
+      "phone": "(123) 456-7890",
+      "venueId": "venue-a",
+      "venueName": "venue-a",
+      "modelId": "cherish",
+      "createdAt": "2026-07-04T20:44:10.444Z",
+      "status": "active",
+      "used": false
+    }
+  ],
+  "venues": [],
+  "models": [],
+  "events": []
+}

@@ -1,0 +1,21 @@
+{
+  "leads": [
+    {
+      "id": "lead_1783199997245",
+      "name": "Alice",
+      "phone": "(123) 456-7890",
+      "modelId": "cherish",
+      "timestamp": "2026-07-04T21:19:57.245Z",
+      "status": "captured"
+    }
+  ],
+  "passes": [],
+  "venues": [],
+  "models": [],
+  "events": [],
+  "subscriptions": [],
+  "vapid": {
+    "publicKey": "BF0iDSMObMOq6dm_PMNx3qlp_41DiXqm0uDPxI8AdHOtOqYrY8u8DKHIXNLNjg6ipWZgjwddVTn-ufxH5AJwAR4",
+    "privateKey": "-_Hpoq_-KOAL2TMXWPGGOp-1eN_laE_xx5Qp5H1I-c0"
+  }
+}
