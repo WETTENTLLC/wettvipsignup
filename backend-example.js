@@ -16,6 +16,7 @@ const QRCode = require('qrcode');
 const webpush = require('web-push');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const multer = require('multer');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
@@ -48,6 +49,19 @@ app.use(helmet({
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(__dirname));
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (allowed.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Unsupported image type'));
+        }
+    }
+});
 
 // Session middleware (simple memory store for now). In production use a keyed store (Redis).
 app.use(session({
@@ -649,15 +663,22 @@ app.get('/api/admin/events', (req, res) => res.json(db.events || []));
 
 // Admin: create an event and notify subscribers via Web Push (and optional SMS)
 app.post('/api/admin/events', (req, res) => {
-    try {
-        const title = sanitizeInput(req.body.title || req.body.name || 'New Event');
-        const description = sanitizeInput(req.body.description || '');
-        const image = sanitizeInput(req.body.image || req.body.imageData || '');
-        const eventDate = sanitizeInput(req.body.date || new Date().toISOString());
-        const venueId = sanitizeInput(req.body.venueId || '');
-        const id = `event_${Date.now()}`;
+    upload.single('imageFile')(req, res, (uploadErr) => {
+        try {
+            if (uploadErr) {
+                return res.status(400).json({ error: uploadErr.message });
+            }
 
-        const ev = { id, title, description, image, date: eventDate, venueId, attendees: [], createdAt: new Date().toISOString() };
+            const title = sanitizeInput(req.body.title || req.body.name || 'New Event');
+            const description = sanitizeInput(req.body.description || '');
+            const eventDate = sanitizeInput(req.body.date || new Date().toISOString());
+            const venueId = sanitizeInput(req.body.venueId || '');
+            const image = req.file
+                ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
+                : sanitizeInput(req.body.image || '');
+            const id = `event_${Date.now()}`;
+
+            const ev = { id, title, description, image, date: eventDate, venueId, attendees: [], createdAt: new Date().toISOString() };
         db.events = db.events || [];
         db.events.push(ev);
         saveData();

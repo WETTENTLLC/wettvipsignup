@@ -150,19 +150,17 @@ function setupEventListeners() {
         if (!title) return alert('Title is required');
 
         try {
-            let imageData = '';
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('description', description);
+            formData.append('date', date);
             if (imageFile) {
-                imageData = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = () => reject(new Error('Unable to read image file'));
-                    reader.readAsDataURL(imageFile);
-                });
+                formData.append('imageFile', imageFile);
             }
 
             const res = await adminFetch('/api/admin/events', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, imageData, description, date })
+                method: 'POST',
+                body: formData
             });
             if (!res.ok) {
                 const errBody = await res.json().catch(() => ({}));
