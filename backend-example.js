@@ -13,6 +13,10 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const twilio = require('twilio');
 const QRCode = require('qrcode');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 
@@ -21,10 +25,57 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
 // Middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'https:'],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'", 'https:'],
+            objectSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            upgradeInsecureRequests: []
+        }
+    }
+}));
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 app.use(express.static(__dirname));
+
+// Session middleware (simple memory store for now). In production use a keyed store (Redis).
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'dev-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000
+    }
+}));
+
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+});
+
+app.use('/api/', apiLimiter);
+app.use((req, res, next) => {
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=()');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    next();
+});
 
 // Twilio setup (for SMS) - only init if credentials exist
 let twilioClient = null;
@@ -33,7 +84,7 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
 }
 
 // Persistent JSON storage
-const DATA_FILE = path.join(__dirname, 'data.json');
+const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data.json');
 
 function loadData() {
     try {
@@ -43,7 +94,7 @@ function loadData() {
     } catch (e) {
         console.error('Error loading data file:', e);
     }
-    return { leads: [], passes: [], venues: [], models: [] };
+    return { leads: [], passes: [], venues: [], models: [], events: [] };
 }
 
 function saveData() {
@@ -52,6 +103,11 @@ function saveData() {
     } catch (e) {
         console.error('Error saving data file:', e);
     }
+}
+
+function sanitizeInput(value) {
+    if (typeof value !== 'string') return value;
+    return value.replace(/[<>]/g, '');
 }
 
 const db = loadData();
@@ -78,9 +134,11 @@ app.get('/verify/:passCode', (req, res) => {
 
 app.post('/api/leads', async (req, res) => {
     try {
-        const { name, phone, modelId, timestamp } = req.body;
+        const name = sanitizeInput(req.body.name);
+        const phone = sanitizeInput(req.body.phone);
+        const modelId = sanitizeInput(req.body.modelId);
+        const timestamp = sanitizeInput(req.body.timestamp);
 
-        // Validate input
         if (!name || !phone || !modelId) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
@@ -119,9 +177,10 @@ app.post('/api/leads', async (req, res) => {
 
 app.post('/api/passes', async (req, res) => {
     try {
-        const { phone, venueId, modelId } = req.body;
+        const phone = sanitizeInput(req.body.phone);
+        const venueId = sanitizeInput(req.body.venueId);
+        const modelId = sanitizeInput(req.body.modelId);
 
-        // Validate input
         if (!phone || !venueId) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
@@ -202,9 +261,13 @@ app.post('/api/analytics', async (req, res) => {
 
 app.post('/api/verify-pass', async (req, res) => {
     try {
-        const { passCode, venueId } = req.body;
+        const passCode = sanitizeInput(req.body.passCode);
+        const venueId = sanitizeInput(req.body.venueId);
 
-        // Find pass
+        if (!passCode) {
+            return res.status(400).json({ valid: false, message: 'Pass code required' });
+        }
+
         const pass = passes.find(p => p.passCode === passCode);
 
         if (!pass) {
@@ -245,9 +308,14 @@ app.post('/api/verify-pass', async (req, res) => {
 
 app.post('/api/confirm-entry', async (req, res) => {
     try {
-        const { passCode, venueId, confirmedAt } = req.body;
+        const passCode = sanitizeInput(req.body.passCode);
+        const venueId = sanitizeInput(req.body.venueId);
+        const confirmedAt = sanitizeInput(req.body.confirmedAt);
 
-        // Find pass
+        if (!passCode || !venueId) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
         const pass = passes.find(p => 
             p.passCode === passCode && 
             p.status === 'active'
@@ -288,6 +356,53 @@ app.post('/api/confirm-entry', async (req, res) => {
         res.status(500).json({ error: 'Failed to confirm entry' });
     }
 });
+
+    // ============================================
+    // AUTH: Admin login + session middleware
+    // ============================================
+
+    // Admin login - accepts JSON { username, password }
+    app.post('/api/admin/login', async (req, res) => {
+        try {
+            const username = sanitizeInput(req.body.username);
+            const password = req.body.password; // raw for bcrypt
+
+            if (!username || !password) return res.status(400).json({ error: 'Missing credentials' });
+
+            const adminUser = process.env.ADMIN_USER || 'admin';
+            const adminHash = process.env.ADMIN_PASSWORD_HASH || bcrypt.hashSync('password', 10);
+
+            if (username !== adminUser) {
+                return res.status(401).json({ error: 'Invalid credentials' });
+            }
+
+            const ok = await bcrypt.compare(password, adminHash);
+            if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+
+            req.session.isAdmin = true;
+            req.session.adminUser = adminUser;
+            res.json({ success: true, message: 'Logged in' });
+        } catch (err) {
+            console.error('Login error', err);
+            res.status(500).json({ error: 'Login failed' });
+        }
+    });
+
+    app.get('/api/admin/logout', (req, res) => {
+        if (req.session) {
+            req.session.destroy(() => {
+                res.json({ success: true });
+            });
+        } else res.json({ success: true });
+    });
+
+    function requireAdmin(req, res, next) {
+        if (req.session && req.session.isAdmin) return next();
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Protect admin routes declared after this point
+    app.use('/api/admin', requireAdmin);
 
 // ============================================
 // 5. ADMIN DASHBOARD API
@@ -337,8 +452,16 @@ app.get('/api/admin/stats', (req, res) => {
 app.get('/api/admin/venues', (req, res) => res.json(venues));
 
 app.post('/api/admin/venues', (req, res) => {
-    const { name, address, offer, icon, fee } = req.body;
-    if (!name || !offer || fee == null) return res.status(400).json({ error: 'Missing fields' });
+    const name = sanitizeInput(req.body.name);
+    const address = sanitizeInput(req.body.address);
+    const offer = sanitizeInput(req.body.offer);
+    const icon = sanitizeInput(req.body.icon);
+    const fee = Number(req.body.fee);
+
+    if (!name || !offer || Number.isNaN(fee)) {
+        return res.status(400).json({ error: 'Missing or invalid fields' });
+    }
+
     const venue = { id: name.toLowerCase().replace(/\s+/g, '-'), name, address, offer, icon: icon || '🎭', fee };
     const existing = venues.findIndex(v => v.id === venue.id);
     if (existing >= 0) venues[existing] = venue; else venues.push(venue);
@@ -358,7 +481,10 @@ app.delete('/api/admin/venues/:id', (req, res) => {
 app.get('/api/admin/models', (req, res) => res.json(models));
 
 app.post('/api/admin/models', (req, res) => {
-    const { name, description, location } = req.body;
+    const name = sanitizeInput(req.body.name);
+    const description = sanitizeInput(req.body.description);
+    const location = sanitizeInput(req.body.location);
+
     if (!name) return res.status(400).json({ error: 'Name required' });
     const model = { id: `model_${Date.now()}`, name, description, location, totalTaps: 0, conversions: 0 };
     models.push(model);
@@ -376,6 +502,9 @@ app.delete('/api/admin/models/:id', (req, res) => {
 
 // --- PASSES LIST ---
 app.get('/api/admin/passes', (req, res) => res.json(passes));
+
+// --- EVENTS LIST ---
+app.get('/api/admin/events', (req, res) => res.json(db.events || []));
 
 // ============================================
 // HELPER FUNCTIONS
@@ -482,8 +611,9 @@ async function sendRetentionSMS() {
 // START SERVER
 // ============================================
 
-app.listen(PORT, () => {
-    console.log(`
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`
     🎉 WETT VIP Portal Backend Started
     ✅ Running on http://localhost:${PORT}
     
@@ -495,6 +625,7 @@ app.listen(PORT, () => {
     GET    /api/admin/leads/:modelId
     GET    /api/admin/stats
     `);
-});
+    });
+}
 
 module.exports = app;

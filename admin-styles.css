@@ -131,6 +131,30 @@ body {
     padding: 40px;
 }
 
+.backend-banner {
+    display: none;
+    padding: 15px 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    font-weight: 600;
+}
+
+.backend-banner.visible {
+    display: block;
+}
+
+.backend-banner.online {
+    background: #e6ffed;
+    color: #166534;
+    border: 1px solid #a7f3d0;
+}
+
+.backend-banner.offline {
+    background: #fff1f2;
+    color: #981b1c;
+    border: 1px solid #fecaca;
+}
+
 .section {
     display: none;
     animation: fadeIn 0.3s ease;

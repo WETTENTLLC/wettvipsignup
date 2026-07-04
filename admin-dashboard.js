@@ -5,6 +5,26 @@ let venues = [];
 let models = [];
 let passes = [];
 let stats = {};
+let backendAvailable = false;
+
+function setBackendStatus(isAvailable) {
+    backendAvailable = isAvailable;
+    const banner = document.getElementById('backendStatusBanner');
+    if (!banner) return;
+
+    banner.classList.add('visible');
+    banner.classList.remove('online', 'offline', 'backend-banner-hidden');
+
+    if (isAvailable) {
+        banner.classList.add('online');
+        banner.classList.remove('offline');
+        banner.innerHTML = '<strong>Backend status:</strong> Connected. Your models and venues are being saved to the server.';
+    } else {
+        banner.classList.add('offline');
+        banner.classList.remove('online');
+        banner.innerHTML = '<strong>Backend status:</strong> Offline. Live data is unavailable and changes are not being saved.';
+    }
+}
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -43,6 +63,43 @@ function setupEventListeners() {
 
     // Logout
     document.querySelector('.btn-logout').addEventListener('click', logout);
+
+    // Global click delegation for dashboard buttons
+    document.body.addEventListener('click', function(event) {
+        const target = event.target.closest('[data-action]');
+        if (!target) return;
+
+        const action = target.dataset.action;
+        const payload = target.dataset.payload;
+        switch (action) {
+            case 'switch-section':
+                switchSection(payload);
+                break;
+            case 'open-venue-form':
+                openVenueForm(payload);
+                break;
+            case 'close-venue-form':
+                closeVenueForm();
+                break;
+            case 'open-model-form':
+                openModelForm(payload);
+                break;
+            case 'close-model-form':
+                closeModelForm();
+                break;
+            case 'copy-model-url':
+                copyModelUrl(payload);
+                break;
+            case 'delete-venue':
+                deleteVenue(payload);
+                break;
+            case 'delete-model':
+                deleteModel(payload);
+                break;
+            default:
+                break;
+        }
+    });
 }
 
 // Load dashboard data
@@ -50,8 +107,12 @@ async function loadDashboardData() {
     try {
         // Fetch stats
         const statsRes = await fetch('/api/admin/stats');
+        if (!statsRes.ok) {
+            throw new Error(`Stats request failed: ${statsRes.status}`);
+        }
         stats = await statsRes.json();
-        
+        setBackendStatus(true);
+
         // Update stats display
         document.getElementById('totalLeads').textContent = stats.totalLeads || 0;
         document.getElementById('totalPasses').textContent = stats.totalPasses || 0;
@@ -59,22 +120,19 @@ async function loadDashboardData() {
             Object.values(stats.venueStats || {}).reduce((sum, v) => sum + (v.redeemed || 0), 0);
         document.getElementById('monthlyRevenue').textContent = 
             '$' + (Object.values(stats.venueStats || {}).reduce((sum, v) => sum + (v.redeemed * 2.50), 0)).toFixed(2);
-
-        // Load venues
-        await loadVenues();
-        
-        // Load models
-        await loadModels();
-        
-        // Load passes
-        await loadPasses();
-        
-        // Update analytics
-        updateAnalytics();
-
     } catch (error) {
-        console.error('Error loading dashboard data:', error);
+        console.error('Error loading stats:', error);
+        setBackendStatus(false);
+        document.getElementById('totalLeads').textContent = 0;
+        document.getElementById('totalPasses').textContent = 0;
+        document.getElementById('redeemedPasses').textContent = 0;
+        document.getElementById('monthlyRevenue').textContent = '$0';
     }
+
+    await loadVenues();
+    await loadModels();
+    await loadPasses();
+    updateAnalytics();
 }
 
 // ============ VENUE MANAGEMENT ============
@@ -82,11 +140,15 @@ async function loadDashboardData() {
 async function loadVenues() {
     try {
         const res = await fetch('/api/admin/venues');
+        if (!res.ok) throw new Error(`Venues request failed: ${res.status}`);
         venues = await res.json();
         renderVenuesList();
+        setBackendStatus(true);
     } catch (error) {
-        console.error('Error loading venues:', error);
+        console.error('Unable to load live venues from backend:', error);
+        venues = [];
         renderVenuesList();
+        setBackendStatus(false);
     }
 }
 
@@ -107,8 +169,8 @@ function renderVenuesList() {
                 <p><strong>WETT Fee:</strong> $${venue.fee.toFixed(2)} per pass</p>
             </div>
             <div class="item-actions">
-                <button class="btn btn-secondary btn-small" onclick="openVenueForm('${venue.id}')">Edit</button>
-                <button class="btn btn-danger btn-small" onclick="deleteVenue('${venue.id}')">Delete</button>
+                <button class="btn btn-secondary btn-small" data-action="open-venue-form" data-payload="${venue.id}">Edit</button>
+                <button class="btn btn-danger btn-small" data-action="delete-venue" data-payload="${venue.id}">Delete</button>
             </div>
         </div>
     `).join('');
@@ -162,12 +224,15 @@ async function handleVenueSubmit(e) {
 
         if (response.ok) {
             closeVenueForm();
-            loadVenues();
+            await loadVenues();
             alert('Venue saved successfully!');
+            return;
         }
+        throw new Error(`Venue API returned ${response.status}`);
     } catch (error) {
-        console.error('Error saving venue:', error);
-        alert('Error saving venue');
+        console.error('Unable to save venue to backend:', error);
+        setBackendStatus(false);
+        alert('Unable to save venue. Please make sure the backend is running and try again.');
     }
 }
 
@@ -175,10 +240,14 @@ async function deleteVenue(venueId) {
     if (!confirm('Are you sure you want to delete this venue?')) return;
 
     try {
-        await fetch(`/api/admin/venues/${venueId}`, { method: 'DELETE' });
-        loadVenues();
+        const res = await fetch(`/api/admin/venues/${venueId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`Delete venue failed: ${res.status}`);
+        await loadVenues();
+        return;
     } catch (error) {
-        console.error('Error deleting venue:', error);
+        console.error('Unable to delete venue from backend:', error);
+        setBackendStatus(false);
+        alert('Unable to delete venue. Please make sure the backend is running and try again.');
     }
 }
 
@@ -187,11 +256,15 @@ async function deleteVenue(venueId) {
 async function loadModels() {
     try {
         const res = await fetch('/api/admin/models');
+        if (!res.ok) throw new Error(`Models request failed: ${res.status}`);
         models = await res.json();
         renderModelsList();
+        setBackendStatus(true);
     } catch (error) {
-        console.error('Error loading models:', error);
+        console.error('Unable to load live models from backend:', error);
+        models = [];
         renderModelsList();
+        setBackendStatus(false);
     }
 }
 
@@ -218,9 +291,9 @@ function renderModelsList() {
                 <p><strong>Stats:</strong> ${totalTaps} taps → ${conversions} passes (${conversionRate}% conversion)</p>
             </div>
             <div class="item-actions">
-                <button class="btn btn-secondary btn-small" onclick="copyModelUrl('${model.name}')">Copy URL</button>
-                <button class="btn btn-secondary btn-small" onclick="openModelForm('${model.id}')">Edit</button>
-                <button class="btn btn-danger btn-small" onclick="deleteModel('${model.id}')">Delete</button>
+                <button class="btn btn-secondary btn-small" data-action="copy-model-url" data-payload="${model.name}">Copy URL</button>
+                <button class="btn btn-secondary btn-small" data-action="open-model-form" data-payload="${model.id}">Edit</button>
+                <button class="btn btn-danger btn-small" data-action="delete-model" data-payload="${model.id}">Delete</button>
             </div>
         </div>
     `;
@@ -269,7 +342,9 @@ async function handleModelSubmit(e) {
     const model = {
         name: document.getElementById('modelName').value.toLowerCase().replace(/\s+/g, '-'),
         description: document.getElementById('modelDescription').value,
-        location: document.getElementById('modelLocation').value
+        location: document.getElementById('modelLocation').value,
+        totalTaps: 0,
+        conversions: 0
     };
 
     if (!model.name || model.name.length === 0) {
@@ -286,12 +361,15 @@ async function handleModelSubmit(e) {
 
         if (response.ok) {
             closeModelForm();
-            loadModels();
+            await loadModels();
             alert(`Model created!\n\nURL to program: ${window.location.origin}/tag/${model.name}`);
+            return;
         }
+        throw new Error(`Models API returned ${response.status}`);
     } catch (error) {
-        console.error('Error saving model:', error);
-        alert('Error saving model');
+        console.error('Unable to save model to backend:', error);
+        setBackendStatus(false);
+        alert('Unable to save model. Please make sure the backend is running and try again.');
     }
 }
 
@@ -299,10 +377,14 @@ async function deleteModel(modelId) {
     if (!confirm('Are you sure you want to delete this model?')) return;
 
     try {
-        await fetch(`/api/admin/models/${modelId}`, { method: 'DELETE' });
-        loadModels();
+        const res = await fetch(`/api/admin/models/${modelId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`Delete model failed: ${res.status}`);
+        await loadModels();
+        return;
     } catch (error) {
-        console.error('Error deleting model:', error);
+        console.error('Unable to delete model from backend:', error);
+        setBackendStatus(false);
+        alert('Unable to delete model. Please make sure the backend is running and try again.');
     }
 }
 

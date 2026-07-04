@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Login</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Admin Sign In</h1>
+    <form id="loginForm">
+      <label>
+        Username
+        <input type="text" name="username" id="username" required />
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" id="password" required />
+      </label>
+      <div id="formError" class="form-error hidden"></div>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+  <script src="admin-login.js"></script>
+</body>
+</html>

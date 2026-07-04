@@ -1,5 +1,6 @@
 // Venues loaded from backend (populated by admin dashboard)
 let VENUES = [];
+let EVENTS = [];
 
 // State management
 let formData = {
@@ -12,12 +13,33 @@ let formData = {
 // Initialize app
 document.addEventListener('DOMContentLoaded', async function() {
     extractModelIdFromURL();
-    await loadVenues();
+    await Promise.all([loadVenues(), loadEvents()]);
     // Verify backend endpoints (non-blocking)
     verifyBackendEndpoints();
     setupEventListeners();
     logAnalytics('page_loaded', { modelId: formData.modelId });
 });
+
+function setFormError(message) {
+    let errorEl = document.getElementById('formError');
+    if (!errorEl) {
+        const form = document.getElementById('dataForm');
+        errorEl = document.createElement('div');
+        errorEl.id = 'formError';
+        errorEl.className = 'form-error';
+        form.parentNode.insertBefore(errorEl, form.nextSibling);
+    }
+    errorEl.textContent = message;
+    errorEl.style.display = 'block';
+}
+
+function clearFormError() {
+    const errorEl = document.getElementById('formError');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+    }
+}
 
 // Extract ModelID from URL (wett.vip/tag/[ModelID])
 function extractModelIdFromURL() {
@@ -98,11 +120,18 @@ async function handleFormSubmit(e) {
         phone: formData.phone
     });
 
-    // Send to backend (optional)
-    await sendLeadToBackend(formData);
+    // Send to backend and require it to succeed before continuing
+    const leadSaved = await sendLeadToBackend(formData);
+    if (!leadSaved) {
+        return;
+    }
 
-    // If there are no venues available, show the no-venues message
+    // If there are no venues available, show the no-venues message or events if available
     if (!VENUES || VENUES.length === 0) {
+        if (EVENTS && EVENTS.length > 0) {
+            showVenuePortal();
+            return;
+        }
         showNoVenuesMessage();
         return;
     }
@@ -125,12 +154,27 @@ async function loadVenues() {
     // If backend returns none, leave VENUES empty so UX can inform users
 }
 
+async function loadEvents() {
+    try {
+        const res = await fetch('/api/admin/events');
+        if (!res.ok) throw new Error(`Events request failed: ${res.status}`);
+        const events = await res.json();
+        if (events.length > 0) {
+            EVENTS = events;
+        }
+    } catch (e) {
+        console.warn('Could not load events from backend', e);
+        EVENTS = [];
+    }
+}
+
 // Show the no-venues message UI
 function showNoVenuesMessage() {
     // Switch sections
     document.getElementById('captureForm').classList.remove('active');
     const section = document.getElementById('noVenuesSection');
     if (section) section.style.display = 'block';
+    document.getElementById('eventSection').classList.add('hidden');
 
     // Personalize heading
     const wrapper = document.querySelector('#noVenuesSection .no-venues-wrapper');
@@ -159,6 +203,26 @@ function showNoVenuesMessage() {
         });
         doneBtn._bound = true;
     }
+}
+
+function renderEventList() {
+    const section = document.getElementById('eventSection');
+    const eventList = document.getElementById('eventList');
+
+    if (!EVENTS || EVENTS.length === 0) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    section.classList.remove('hidden');
+    eventList.innerHTML = EVENTS.map(event => `
+        <div class="event-card">
+            <h4>${event.name}</h4>
+            <p>${event.description || 'No description available.'}</p>
+            <p><strong>Date:</strong> ${event.date || 'TBA'}</p>
+            <p><strong>Location:</strong> ${event.location || 'TBA'}</p>
+        </div>
+    `).join('');
 }
 
 // Verify key backend endpoints are reachable and log status
@@ -199,11 +263,18 @@ async function sendLeadToBackend(data) {
         });
 
         if (!response.ok) {
-            console.warn('Failed to send lead to backend:', response.status);
+            const body = await response.text();
+            setFormError('Unable to save your info. Please try again.');
+            console.error('Failed to send lead to backend:', response.status, body);
+            return false;
         }
+
+        clearFormError();
+        return true;
     } catch (error) {
-        console.warn('Error sending lead to backend:', error);
-        // Continue anyway - don't block UX
+        setFormError('Unable to save your info. Please check your connection and try again.');
+        console.error('Error sending lead to backend:', error);
+        return false;
     }
 }
 
@@ -212,8 +283,9 @@ function showVenuePortal() {
     // Update display
     document.getElementById('displayName').textContent = formData.name.split(' ')[0];
 
-    // Render venue cards
+    // Render venue cards and events
     renderVenueList();
+    renderEventList();
 
     // Switch sections
     document.getElementById('captureForm').classList.remove('active');
@@ -259,19 +331,20 @@ async function handleVenueSelection(venueId) {
     // Show loading
     showLoadingSpinner();
 
-    // Simulate backend processing (QR code generation, SMS sending)
-    const backendResult = await processPassGeneration(venue);
-
-    // Hide loading
-    hideLoadingSpinner();
-
-    // Show pass
-    showPassGenerated(venue, backendResult);
+    try {
+        const backendResult = await processPassGeneration(venue);
+        showPassGenerated(venue, backendResult);
+    } catch (e) {
+        console.error('Pass generation failed:', e);
+        setFormError('Unable to complete your VIP pass right now. Please try again later.');
+    } finally {
+        hideLoadingSpinner();
+    }
 }
 
 // Process pass generation
 async function processPassGeneration(venue) {
-    // Try calling the backend /api/passes endpoint. If it fails, fall back to simulated pass.
+    // Try calling the backend /api/passes endpoint.
     try {
         const res = await fetch('/api/passes', {
             method: 'POST',
@@ -279,21 +352,20 @@ async function processPassGeneration(venue) {
             body: JSON.stringify({ phone: formData.phone, venueId: venue.id, modelId: formData.modelId })
         });
 
-        if (res.ok) {
-            const json = await res.json();
-            // Expecting { success, passCode, qrCodeUrl }
-            return {
-                passCode: json.passCode,
-                qrCodeUrl: json.qrCodeUrl
-            };
+        if (!res.ok) {
+            const body = await res.text();
+            throw new Error(`Pass endpoint returned ${res.status}: ${body}`);
         }
-    } catch (e) {
-        console.warn('Backend /api/passes unavailable, falling back to client-side generation', e);
-    }
 
-    // Fallback: simulate generation and return a locally-created passCode
-    await new Promise(r => setTimeout(r, 800));
-    return { passCode: generatePassCode(), qrCodeUrl: null };
+        const json = await res.json();
+        return {
+            passCode: json.passCode,
+            qrCodeUrl: json.qrCodeUrl
+        };
+    } catch (e) {
+        console.error('Backend /api/passes failed:', e);
+        throw e;
+    }
 }
 
 // Show pass generated screen
@@ -364,6 +436,27 @@ function showLoadingSpinner() {
     document.getElementById('loadingSpinner').classList.add('active');
 }
 
+function setFormError(message) {
+    let errorEl = document.getElementById('formError');
+    if (!errorEl) {
+        const form = document.getElementById('dataForm');
+        errorEl = document.createElement('div');
+        errorEl.id = 'formError';
+        errorEl.className = 'form-error';
+        form.parentNode.insertBefore(errorEl, form.nextSibling);
+    }
+    errorEl.textContent = message;
+    errorEl.style.display = 'block';
+}
+
+function clearFormError() {
+    const errorEl = document.getElementById('formError');
+    if (errorEl) {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+    }
+}
+
 function hideLoadingSpinner() {
     document.getElementById('loadingSpinner').classList.remove('active');
 }
@@ -422,8 +515,3 @@ function logAnalytics(event, data = {}) {
     }
 }
 
-// Test function (for development)
-function testQRCode() {
-    const testVenue = VENUES[0];
-    showPassGenerated(testVenue);
-}

@@ -88,6 +88,19 @@ function showValidState(passCode, data) {
     document.getElementById('confirmBtn').onclick = () => confirmEntry(passCode, data.venue);
 }
 
+document.addEventListener('DOMContentLoaded', function() {
+    const reloadButtons = [
+        'reloadTryAgain',
+        'reloadScanAnother',
+        'reloadScanNext'
+    ];
+
+    reloadButtons.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.addEventListener('click', () => location.reload());
+    });
+});
+
 // Confirm entry and mark pass as used
 async function confirmEntry(passCode, venueId) {
     try {
@@ -161,19 +174,4 @@ function hideAllStates() {
     document.getElementById('invalidState').classList.remove('active');
     document.getElementById('usedState').classList.remove('active');
     document.getElementById('successState').classList.remove('active');
-}
-
-// Simulate backend response (for testing without backend)
-function simulateVerification(passCode) {
-    setTimeout(() => {
-        if (passCode === 'TEST123') {
-            showValidState(passCode, {
-                venue: 'wolf-den',
-                phone: '(555) 123-4567',
-                message: 'Valid pass'
-            });
-        } else {
-            showInvalidState('Pass not found');
-        }
-    }, 1500);
 }

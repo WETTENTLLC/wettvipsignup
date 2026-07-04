@@ -41,6 +41,10 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <div id="backendStatusBanner" class="backend-banner backend-banner-hidden">
+                <strong>Backend status:</strong> Checking connection...
+            </div>
+
             <!-- Overview Section -->
             <section id="overview-section" class="section active">
                 <h1>Dashboard Overview</h1>
@@ -81,8 +85,8 @@
 
                 <div class="quick-actions">
                     <h2>Quick Actions</h2>
-                    <button class="btn btn-primary" onclick="switchSection('venues')">+ Add Venue</button>
-                    <button class="btn btn-secondary" onclick="switchSection('models')">+ Create Model</button>
+                    <button class="btn btn-primary" data-action="switch-section" data-payload="venues">+ Add Venue</button>
+                    <button class="btn btn-secondary" data-action="switch-section" data-payload="models">+ Create Model</button>
                 </div>
             </section>
 
@@ -90,7 +94,7 @@
             <section id="venues-section" class="section">
                 <div class="section-header">
                     <h1>Manage Venues</h1>
-                    <button class="btn btn-primary" onclick="openVenueForm('new')">+ Add Venue</button>
+                    <button class="btn btn-primary" data-action="open-venue-form" data-payload="new">+ Add Venue</button>
                 </div>
 
                 <!-- Add/Edit Venue Form -->
@@ -124,7 +128,7 @@
 
                         <div class="form-actions">
                             <button type="submit" class="btn btn-success">Save Venue</button>
-                            <button type="button" class="btn btn-secondary" onclick="closeVenueForm()">Cancel</button>
+                            <button type="button" class="btn btn-secondary" data-action="close-venue-form">Cancel</button>
                         </div>
                     </form>
                 </div>
@@ -139,7 +143,7 @@
             <section id="models-section" class="section">
                 <div class="section-header">
                     <h1>NFC Models & Tags</h1>
-                    <button class="btn btn-primary" onclick="openModelForm('new')">+ Create Model</button>
+                    <button class="btn btn-primary" data-action="open-model-form" data-payload="new">+ Create Model</button>
                 </div>
 
                 <!-- Add/Edit Model Form -->
@@ -165,12 +169,12 @@
                         <div class="form-info">
                             <p><strong>URL to Program:</strong></p>
                             <code id="modelUrl" class="url-code">https://wett.vip/tag/model-name</code>
-                            <button type="button" class="btn btn-small" onclick="copyToClipboard()">📋 Copy</button>
+                            <button type="button" class="btn btn-small" data-action="copy-model-url" data-payload="${model.name}">📋 Copy</button>
                         </div>
 
                         <div class="form-actions">
                             <button type="submit" class="btn btn-success">Create Model</button>
-                            <button type="button" class="btn btn-secondary" onclick="closeModelForm()">Cancel</button>
+                            <button type="button" class="btn btn-secondary" data-action="close-model-form">Cancel</button>
                         </div>
                     </form>
                 </div>
