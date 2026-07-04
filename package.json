@@ -17,7 +17,8 @@
     "express-rate-limit": "^6.11.0",
     "helmet": "^7.0.0",
     "qrcode": "^1.5.2",
-    "twilio": "^3.77.0"
+    "twilio": "^3.77.0",
+    "web-push": "^3.5.0"
   },
   "devDependencies": {
     "jest": "^29.0.0",

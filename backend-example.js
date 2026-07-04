@@ -13,6 +13,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const twilio = require('twilio');
 const QRCode = require('qrcode');
+const webpush = require('web-push');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const session = require('express-session');
@@ -154,6 +155,37 @@ const leads = db.leads;
 const passes = db.passes;
 const venues = db.venues;
 const models = db.models;
+db.subscriptions = db.subscriptions || [];
+db.events = db.events || db.events || [];
+
+// Web Push (VAPID) setup — prefer env vars, fall back to persisted keys in data.json,
+// otherwise generate keys on first run and persist them so clients can subscribe.
+let vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+if (!vapidPublicKey || !vapidPrivateKey) {
+    if (db.vapid && db.vapid.publicKey && db.vapid.privateKey) {
+        vapidPublicKey = db.vapid.publicKey;
+        vapidPrivateKey = db.vapid.privateKey;
+    } else {
+        try {
+            const keys = webpush.generateVAPIDKeys();
+            vapidPublicKey = keys.publicKey;
+            vapidPrivateKey = keys.privateKey;
+            db.vapid = { publicKey: vapidPublicKey, privateKey: vapidPrivateKey };
+            saveData();
+            console.log('Generated new VAPID keys for Web Push.');
+        } catch (e) {
+            console.error('Failed generating VAPID keys', e);
+        }
+    }
+}
+if (vapidPublicKey && vapidPrivateKey) {
+    try {
+        webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:admin@wett.vip', vapidPublicKey, vapidPrivateKey);
+    } catch (e) {
+        console.error('Error setting VAPID details', e);
+    }
+}
 
 // SPA route handling - serve index.html for /tag/:modelId and track tap
 app.get('/tag/:modelId', (req, res) => {
@@ -292,6 +324,32 @@ app.post('/api/analytics', async (req, res) => {
         console.error('Error recording analytics:', error);
         res.status(500).json({ error: 'Failed to record analytics' });
     }
+});
+
+// Public endpoint for clients to register a Web Push subscription
+app.post('/api/subscribe', (req, res) => {
+    try {
+        const subscription = req.body && req.body.subscription;
+        if (!subscription || !subscription.endpoint) return res.status(400).json({ error: 'Invalid subscription' });
+
+        // avoid duplicates
+        const exists = db.subscriptions.find(s => s.endpoint === subscription.endpoint);
+        if (!exists) {
+            db.subscriptions.push(subscription);
+            saveData();
+        }
+
+        return res.json({ success: true, publicKey: vapidPublicKey });
+    } catch (e) {
+        console.error('Error saving subscription', e);
+        res.status(500).json({ error: 'Failed to save subscription' });
+    }
+});
+
+// Public: get VAPID public key for client registration
+app.get('/api/public-vapid-key', (req, res) => {
+    if (!vapidPublicKey) return res.status(500).json({ error: 'VAPID key not available' });
+    res.json({ publicKey: vapidPublicKey });
 });
 
 // ============================================
@@ -579,6 +637,60 @@ app.get('/api/admin/passes', (req, res) => res.json(passes));
 // --- EVENTS LIST ---
 app.get('/api/admin/events', (req, res) => res.json(db.events || []));
 
+// Admin: create an event and notify subscribers via Web Push (and optional SMS)
+app.post('/api/admin/events', (req, res) => {
+    try {
+        const title = sanitizeInput(req.body.title || req.body.name || 'New Event');
+        const description = sanitizeInput(req.body.description || '');
+        const eventDate = sanitizeInput(req.body.date || new Date().toISOString());
+        const venueId = sanitizeInput(req.body.venueId || '');
+        const id = `event_${Date.now()}`;
+
+        const ev = { id, title, description, date: eventDate, venueId, createdAt: new Date().toISOString() };
+        db.events = db.events || [];
+        db.events.push(ev);
+        saveData();
+
+        // Notify web-push subscribers
+        const payload = JSON.stringify({
+            title: `New event: ${title}`,
+            body: description || `Event on ${eventDate}`,
+            url: `/events/${id}`
+        });
+
+        if (db.subscriptions && db.subscriptions.length && vapidPublicKey) {
+            db.subscriptions = db.subscriptions || [];
+            const toRemove = [];
+            for (const sub of db.subscriptions) {
+                webpush.sendNotification(sub, payload).catch(err => {
+                    console.warn('WebPush send failed, removing subscription', err && err.statusCode, err && err.body);
+                    toRemove.push(sub.endpoint);
+                });
+            }
+            if (toRemove.length) {
+                db.subscriptions = db.subscriptions.filter(s => !toRemove.includes(s.endpoint));
+                saveData();
+            }
+        }
+
+        // Optional SMS broadcast (only if Twilio configured) — notify recent leads
+        try {
+            if (twilioClient) {
+                const message = `📣 ${title} — ${description || ''} Visit wett.vip for details.`;
+                const recipients = leads.slice(-200).map(l => l.phone).filter(Boolean); // limit to recent 200 to avoid large sends
+                for (const phone of recipients) {
+                    sendSMS(phone, message).catch(() => {});
+                }
+            }
+        } catch (e) {}
+
+        res.json({ success: true, event: ev, notified: { webPush: db.subscriptions.length } });
+    } catch (e) {
+        console.error('Error creating event', e);
+        res.status(500).json({ error: 'Failed to create event' });
+    }
+});
+
 // --- BACKUPS & RESTORE ---
 app.get('/api/admin/backups', (req, res) => {
     try {
@@ -705,6 +817,28 @@ async function sendPassViaSMS(phone, passCode, venueId) {
         return message;
     } catch (error) {
         console.error('Error sending SMS:', error);
+    }
+}
+
+/**
+ * Send a generic SMS (uses Twilio when configured, otherwise logs).
+ */
+async function sendSMS(phone, message) {
+    if (!phone) return null;
+    if (!twilioClient) {
+        console.log(`📱 SMS skipped (Twilio not configured). Would send to ${phone}: ${message}`);
+        return null;
+    }
+    try {
+        const msg = await twilioClient.messages.create({
+            body: message,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: phone
+        });
+        console.log(`📱 SMS sent to ${phone}:`, msg.sid);
+        return msg;
+    } catch (err) {
+        console.error('Error sending SMS', err);
     }
 }
 
